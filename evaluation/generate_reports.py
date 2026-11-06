@@ -89,11 +89,15 @@ def main():
         else:
             for attempt in range(5):
                 try:
-                    msg = client.messages.create(model=MODEL, max_tokens=300,
+                    # room for the model's thinking as well as the short message
+                    msg = client.messages.create(model=MODEL, max_tokens=2000,
                                                  messages=[{"role": "user", "content": build_prompt(r)}])
-                    text = msg.content[0].text.strip().strip('"')
+                    reply = next((b.text for b in msg.content if b.type == "text"), "")
+                    if msg.stop_reason == "max_tokens" or not reply.strip():
+                        raise ValueError("message cut off or empty")
+                    text = reply.strip().strip('"')
                     break
-                except Exception as e:  # rate limits or network errors: wait and retry
+                except Exception as e:  # rate limits, network errors or cut-off replies: wait and retry
                     wait = 2 ** attempt
                     print(f"  {r['id']} failed ({e.__class__.__name__}), retrying in {wait}s")
                     time.sleep(wait)
