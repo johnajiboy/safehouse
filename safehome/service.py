@@ -7,7 +7,7 @@ from datetime import datetime
 from functools import lru_cache
 
 from . import config, intake, messages, patterns, planner, repairs, rules, store
-from .hazards import EMERGENCY, ROUTINE, STAGES
+from .hazards import EMERGENCY, ROUTINE, STAGES, VULNERABILITY_TYPES
 from .models import Case
 
 
@@ -50,8 +50,11 @@ def require_case(ref: str) -> Case:
 # --- A report arrives ---------------------------------------------------------
 
 def submit_report(text: str, address: str, area: str, contact: str = "", reported_at: datetime | None = None,
-                  extraction=None) -> Case:
+                  extraction=None, needs: list[str] | None = None) -> Case:
     extraction = extraction or intake.extract(text)
+    needs = [n for n in VULNERABILITY_TYPES if n in (needs or [])]
+    if needs:
+        extraction.vulnerability = [n for n in VULNERABILITY_TYPES if n in needs or n in extraction.vulnerability]
     decision = rules.decide_level(extraction, text)
     lat, lng = locate(address, area)
     case = Case(
@@ -66,6 +69,7 @@ def submit_report(text: str, address: str, area: str, contact: str = "", reporte
         lat=lat,
         lng=lng,
         contact=contact,
+        stated_needs=needs,
     )
     store.save_case(case)
     store.log("Intake Agent", f"Read the report: {case.hazard} ({case.level}), using {extraction.source}", case.ref)
@@ -163,8 +167,10 @@ def findings(case: Case) -> list[dict]:
          "note": "Set by the legal rules"},
         {"field": "Household", "value": ", ".join(ex.vulnerability) or "No vulnerability stated",
          "evidence": vulnerability_quotes,
-         "confidence": "High" if vulnerability_quotes else ("Low" if ex.vulnerability else "Medium"),
-         "note": "" if vulnerability_quotes else "Nothing in the report"},
+         "confidence": "High" if vulnerability_quotes or case.stated_needs
+         else ("Low" if ex.vulnerability else "Medium"),
+         "note": "Stated by the tenant on the report form" if case.stated_needs
+         else ("" if vulnerability_quotes else "Nothing in the report")},
         {"field": "Repeat", "value": "Reported before" if ex.repeat else "Not stated", "evidence": repeat_quotes,
          "confidence": "High" if repeat_quotes else ("Low" if ex.repeat else "Medium"),
          "note": "" if repeat_quotes else "Nothing in the report"},

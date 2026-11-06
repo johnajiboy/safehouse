@@ -53,6 +53,7 @@ class Case:
     lat: float | None = None
     lng: float | None = None
     contact: str = ""
+    stated_needs: list[str] = field(default_factory=list)  # ticked by the tenant on the report form
     # Times each legal step was recorded, in the order of hazards.STAGES after "Reported".
     stage_times: list[datetime] = field(default_factory=list)
     visit_confirmed: bool = False

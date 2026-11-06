@@ -12,7 +12,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import config, seed, service, simulation, store
+from . import config, messages, seed, service, simulation, store
+from .hazards import EMERGENCY, VULNERABILITY_TYPES
 
 app = FastAPI(title="SafeHome")
 
@@ -22,6 +23,14 @@ class ReportIn(BaseModel):
     address: str = Field(min_length=2, max_length=200)
     area: str = ""
     contact: str = ""
+
+
+class TenantReportIn(BaseModel):
+    text: str = Field(min_length=5, max_length=4000)
+    needs: list[str] = Field(default_factory=list, max_length=len(VULNERABILITY_TYPES))
+    address: str = Field(min_length=2, max_length=200)
+    area: str = ""
+    contact: str = Field(min_length=3, max_length=200)
 
 
 class MoveIn(BaseModel):
@@ -66,6 +75,21 @@ def get_plan():
 def post_report(report: ReportIn):
     case = service.submit_report(report.text, report.address, report.area, report.contact)
     return service.case_view(case.ref, datetime.now())
+
+
+@app.post("/api/tenant/reports")
+def post_tenant_report(report: TenantReportIn):
+    """The public form. Tenants get their reference and any safety advice, never the case file."""
+    if any(n not in VULNERABILITY_TYPES for n in report.needs):
+        raise HTTPException(422, "Unknown household need")
+    if report.area and report.area not in service.load_areas():
+        raise HTTPException(422, "Unknown area")
+    case = service.submit_report(report.text, report.address, report.area, report.contact, needs=report.needs)
+    return {
+        "ref": case.ref,
+        "emergency": case.level == EMERGENCY,
+        "safety_advice": messages.safety_message(case),
+    }
 
 
 @app.get("/api/areas")
