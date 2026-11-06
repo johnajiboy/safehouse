@@ -46,3 +46,38 @@ def test_describe_due():
     assert rules.describe_due(datetime(2026, 11, 6, 15, 0), now) == "6 hours"
     assert rules.describe_due(datetime(2026, 11, 5, 9, 0), now) == "Overdue"
     assert rules.describe_due(None, now) == "No legal deadline"
+
+
+def rule_level(text):
+    """The fixed rules alone: the extraction carries no emergency signals."""
+    return rules.decide_level(intake.extract_with_keywords("Black mould on the wall"), text).level
+
+
+def test_a_hole_in_the_landing_floorboards_is_an_emergency():
+    assert rule_level("The hole in the landing floorboards is getting bigger") == EMERGENCY
+    assert level_of("The hole in the landing floorboards is getting bigger") == EMERGENCY
+
+
+def test_bare_wires_are_an_emergency():
+    assert rule_level("The smoke alarm came off and there's just a bare wire") == EMERGENCY
+    assert rule_level("bare wires sticking out of the ceiling") == EMERGENCY
+    assert level_of("bare wires sticking out of the ceiling") == EMERGENCY
+
+
+def test_falling_plaster_or_a_missing_smoke_alarm_alone_is_not_an_emergency():
+    assert level_of("A crack across the ceiling and small bits of plaster falling") != EMERGENCY
+    assert level_of("The smoke alarm is missing from the hallway ceiling") != EMERGENCY
+
+
+def test_wires_with_no_sign_they_are_live_go_to_an_officer():
+    text = "There are wires near the light in the hall"
+    assert intake.extract_with_keywords(text).hazard_confidence == "Low"
+    assert level_of(text) == OFFICER_REVIEW
+
+
+def test_live_wires_stay_an_emergency():
+    assert level_of("There are live wires near the light in the hall") == EMERGENCY
+
+
+def test_a_report_too_short_to_judge_goes_to_an_officer():
+    assert level_of("Mould again.") == OFFICER_REVIEW

@@ -347,6 +347,10 @@ mark.ev.rp {
   background: var(--crit-soft);
   color: var(--crit);
 }
+.conf.Set-by-rules {
+  background: var(--panel-2);
+  color: var(--muted);
+}
 .reviewbox {
   padding: 12px 14px;
   border-radius: 12px;

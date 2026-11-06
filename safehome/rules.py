@@ -24,11 +24,33 @@ from .models import Case, Extraction
 EMERGENCY_TRIGGERS = [
     (r"\bgas\b", "possible gas leak"),
     (r"spark\w*", "sparks from electrics"),
-    (r"(live|exposed) wires?|wires? hanging", "exposed wiring"),
+    (r"(live|exposed|bare) wires?|wires? (hanging|sticking out)", "exposed wiring"),
     (r"ceiling (has )?(fallen|collapsed|came down|caved in)", "collapsed ceiling"),
-    (r"hole in the (floor|floorboards)", "hole in the floor"),
+    (r"hole in the (\w+ ){0,2}(floor|floorboards)", "hole in the floor"),
     (r"(boiler|heating).{0,40}(completely )?(failed|broken down|stopped working).{0,60}(no|without) (heating|hot water)", "total loss of heating"),
 ]
+
+
+# Wording too vague to judge safely without an officer. Checked only when no emergency rule matched.
+UNCLEAR_WORDING = [
+    (r"\bwires?\b(?!.{0,40}\b(live|exposed|bare|hanging|sticking out|spark\w*)\b)",
+     r"\b(live|exposed|bare|spark\w*)\b.{0,40}\bwires?\b",
+     "Wires are mentioned with no sign whether they are live"),
+    (r"\b(funny|strange|weird|odd) smell\b", None, "A smell is mentioned but not described"),
+    (r"\bburning smell\b|\bsmell of burning\b", None, "A burning smell could be electrical"),
+]
+MIN_WORDS = 4
+
+
+def unclear_wording(text: str) -> list[str]:
+    """Reasons the wording is too thin or vague to trust a level without an officer's review."""
+    reasons = []
+    if len(text.split()) < MIN_WORDS:
+        reasons.append("The report is too short to judge the risk")
+    for pattern, cleared_by, reason in UNCLEAR_WORDING:
+        if re.search(pattern, text, re.IGNORECASE) and not (cleared_by and re.search(cleared_by, text, re.IGNORECASE)):
+            reasons.append(reason)
+    return reasons
 
 
 @dataclass
@@ -49,9 +71,10 @@ def decide_level(extraction: Extraction, text: str) -> Decision:
         reasons.append("Investigate and make safe within 24 hours")
         return Decision(EMERGENCY, reasons)
 
-    if extraction.hazard == "Unclear" or extraction.hazard_confidence == "Low":
+    unclear = unclear_wording(text)
+    if extraction.hazard == "Unclear" or extraction.hazard_confidence == "Low" or unclear:
         return Decision(OFFICER_REVIEW, [
-            "The hazard is not clear enough to classify safely",
+            *(unclear or ["The hazard is not clear enough to classify safely"]),
             "Treated as significant until an officer checks it",
         ])
 

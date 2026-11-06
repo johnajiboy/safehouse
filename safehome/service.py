@@ -7,7 +7,7 @@ from datetime import datetime
 from functools import lru_cache
 
 from . import config, intake, messages, patterns, planner, repairs, rules, store
-from .hazards import EMERGENCY, ROUTINE, STAGES, VULNERABILITY_TYPES
+from .hazards import EMERGENCY, STAGES, VULNERABILITY_TYPES
 from .models import Case
 
 
@@ -88,9 +88,10 @@ def survey_groups(now: datetime) -> list[list[str]]:
     return [c.refs for c in patterns.find_clusters(store.all_cases(), now) if c.key in chosen]
 
 
-def current_plan(now: datetime) -> planner.Plan:
+def current_plan(now: datetime, cases: list[Case] | None = None) -> planner.Plan:
     inspectors = store.get_setting("inspectors", config.DEFAULT_INSPECTORS)
-    return planner.build_plan(store.all_cases(), inspectors, now, survey_groups(now))
+    cases = store.all_cases() if cases is None else cases
+    return planner.build_plan(cases, inspectors, now, survey_groups(now))
 
 
 def summary(case: Case, now: datetime) -> dict:
@@ -135,7 +136,7 @@ def plan_view(now: datetime) -> dict:
     cases = store.all_cases()
     clusters = patterns.find_clusters(cases, now)
     chosen = set(store.get_setting("surveys", []))
-    open_cases = [c for c in cases if c.stage == 0]
+    open_cases = plan.today + plan.later
     return {
         "now": now.isoformat(timespec="minutes"),
         "inspectors": store.get_setting("inspectors", config.DEFAULT_INSPECTORS),
@@ -147,8 +148,12 @@ def plan_view(now: datetime) -> dict:
         "investigated": [summary(c, now) for c in plan.investigated],
         "at_risk": [c.ref for c in plan.at_risk],
         "clusters": [{**vars(c), "grouped": c.key in chosen} for c in clusters],
+        # One definition everywhere: open cases are those waiting for an investigation visit.
+        # Routine repairs have no Awaab's Law deadline, so they are counted separately.
         "counts": {
             "open": len(open_cases),
+            "today": len(plan.today),
+            "routine": len(plan.routine),
             "emergencies": sum(c.level == EMERGENCY for c in open_cases),
             "booked_today": sum(bool(c.booking) for c in plan.today),
         },
@@ -157,14 +162,15 @@ def plan_view(now: datetime) -> dict:
 
 def findings(case: Case) -> list[dict]:
     ex = case.extraction
+    unclear = rules.unclear_wording(case.text) if case.level != EMERGENCY else []
     vulnerability_quotes = ex.quotes("household")
     repeat_quotes = ex.quotes("repeat")
     return [
         {"field": "Hazard", "value": ex.hazard, "evidence": ex.quotes("hazard"), "confidence": ex.hazard_confidence,
          "note": "No clear hazard words" if not ex.quotes("hazard") else ""},
         {"field": "Level", "value": case.level, "evidence": ex.quotes("emergency"),
-         "confidence": "High" if case.level in (EMERGENCY, ROUTINE) else "Medium",
-         "note": "Set by the legal rules"},
+         "confidence": "Low" if unclear else "Set by rules",
+         "note": "; ".join(unclear) if unclear else "Set by the legal rules"},
         {"field": "Household", "value": ", ".join(ex.vulnerability) or "No vulnerability stated",
          "evidence": vulnerability_quotes,
          "confidence": "High" if vulnerability_quotes or case.stated_needs
@@ -230,18 +236,36 @@ def confirm_visit(ref: str) -> None:
     store.log("Officer", "Confirmed today's inspection visit", ref)
 
 
-def move(ref: str, to: str, reason: str, note: str = "") -> None:
+def move(ref: str, to: str, reason: str, note: str = "", now: datetime | None = None) -> None:
     if to not in ("today", "later"):
         raise NotAllowed("Cases can only be moved to today or later")
     if not reason:
         raise NotAllowed("A reason is required for every override")
     case = require_case(ref)
+    if to == "today":
+        check_no_emergency_bumped(case, now or datetime.now())
     case.pinned = to
     case.override_reason = reason + (f" ({note})" if note else "")
     if to == "later":
         case.visit_confirmed = False
     store.save_case(case)
     store.log("Officer", f"Override: moved to {to}. Reason: {case.override_reason}", ref)
+
+
+def check_no_emergency_bumped(case: Case, now: datetime) -> None:
+    """Refuse a "today" override that would push an emergency out of today's visits."""
+    cases = store.all_cases()
+    waiting_before = {c.ref for c in current_plan(now, cases).later}
+    for c in cases:
+        if c.ref == case.ref:
+            c.pinned = "today"
+    bumped = [c for c in current_plan(now, cases).later if c.level == EMERGENCY and c.ref not in waiting_before]
+    if bumped:
+        names = ", ".join(f"{c.address} ({c.ref})" for c in bumped)
+        raise NotAllowed(
+            f"Moving {case.address} to today would push the emergency at {names} out of today's visits. "
+            "Add an inspector or move a non-emergency case to later first."
+        )
 
 
 def record_stage(ref: str, now: datetime) -> str:

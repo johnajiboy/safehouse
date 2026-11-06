@@ -161,7 +161,9 @@ function renderAgents() {
   const agents = [
     [
       "Intake Agent",
-      state.processing ? "Reading a new report…" : `${plan.counts.open} open reports read`,
+      state.processing
+        ? "Reading a new report…"
+        : `${plan.counts.open} open cases, ${plan.counts.routine} routine repairs`,
       !!state.processing,
     ],
     [
@@ -207,14 +209,18 @@ function renderToday() {
     <header class="pagehead">
       <div>
         <p class="eyebrow">${date} · Middlesbrough</p>
-        <h1>${plan.today.length} of ${plan.today.length + plan.later.length} cases fit today</h1>
+        <h1>${plan.counts.today} of ${plan.counts.open} open cases fit today</h1>
         ${status}
       </div>
       <button class="btn primary big" data-action="new-report">+ Add report</button>
     </header>
 
     <section class="panel kpis" aria-label="Summary">
-      ${kpi("Open cases", plan.counts.open, "Waiting for investigation")}
+      ${kpi(
+        "Open cases",
+        plan.counts.open,
+        `Waiting for investigation${plan.counts.routine ? ` · plus ${plan.counts.routine} routine repairs` : ""}`,
+      )}
       ${kpi("Possible emergencies", plan.counts.emergencies, "Investigate within 24 hours", plan.counts.emergencies > 0)}
       ${visitsRing(plan)}
       ${kpi("May miss a deadline", atRisk.length, atRisk.length ? "Add an inspector or move a case" : "On track", atRisk.length > 0)}
@@ -380,7 +386,7 @@ function renderOverview(c) {
         <div class="frow">
           <span class="fk">${f.field}</span>
           <span class="fv">${escapeHtml(f.value)}<span class="fe">${proof}</span></span>
-          <span class="conf ${f.confidence}">${f.confidence}</span>
+          <span class="conf ${f.confidence.replace(/\s+/g, "-")}">${f.confidence}</span>
         </div>`;
     })
     .join("");
@@ -466,6 +472,7 @@ function reasonBox(c) {
           ? `<div class="alertbox"><strong>Possible emergency.</strong> Moving it could breach the 24-hour deadline.</div>`
           : ""
       }
+      ${p.error ? `<div class="alertbox" role="alert"><strong>Can't move this case.</strong> ${escapeHtml(p.error)}</div>` : ""}
       <div class="reasons" role="radiogroup" aria-label="Reason">
         ${REASONS[p.type]
           .map(
@@ -914,7 +921,14 @@ async function submitOverride(form) {
   if (state.pending.type === "cancel") {
     await api(`/api/cases/${ref}/cancel-booking`, { method: "POST", body: { reason, note } });
   } else {
-    await api(`/api/cases/${ref}/move`, { method: "POST", body: { to: state.pending.type, reason, note } });
+    try {
+      await api(`/api/cases/${ref}/move`, { method: "POST", body: { to: state.pending.type, reason, note } });
+    } catch (error) {
+      // Keep the form open so the officer can read why the move was refused.
+      Object.assign(state.pending, { reason, note, error: error.message });
+      render();
+      return;
+    }
   }
   state.pending = null;
   toast("Override saved with its reason");

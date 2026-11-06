@@ -7,3 +7,6 @@ __pycache__/
 evaluation/data/reports.csv
 evaluation/predictions/
 evaluation/results/
+evaluation/handwritten/predictions/
+evaluation/handwritten/results/
+evaluation/handwritten/run.log

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from . import config
+from . import config, rules
 from .hazards import HAZARD_TYPES, VULNERABILITY_TYPES
 from .models import Evidence, Extraction
 
@@ -23,9 +23,11 @@ Rules:
 - Every evidence item must be an exact phrase copied from the report, word for word.
 - Choose "Routine repair" for minor problems with no risk to health or safety.
 - Choose "Unclear" when the report does not say enough to identify a hazard.
-- Emergency signals are phrases suggesting an imminent risk of serious harm, such as
-  a gas smell, sparks, exposed wires, a collapsed ceiling or a total loss of heating
-  in cold weather. Leave the list empty if there are none.
+- Emergency signals are phrases describing any of these, and only these:
+  a gas smell; sparks; exposed or bare wiring; a collapsed ceiling or a structure
+  about to fall; a hole someone could fall through; a total loss of heating in cold
+  weather. Small pieces of falling plaster, cracks, or a missing smoke alarm on their
+  own are not emergencies. Leave the list empty if there are none.
 - Missing information: up to three short questions an officer should ask the tenant
   because a safety detail is missing. Do not ask for details already given."""
 
@@ -98,6 +100,8 @@ def build_extraction(text: str, findings: dict, source: str) -> Extraction:
     has_hazard_evidence = any(e.kind == "hazard" for e in evidence)
     if hazard not in ("Unclear", "Routine repair") and not has_hazard_evidence:
         confidence = "Low"  # a claim with no words to back it up is not trusted
+    if rules.unclear_wording(text):
+        confidence = "Low"  # vague wording, such as wires with no sign they're live
 
     return Extraction(
         hazard=hazard,
@@ -138,7 +142,10 @@ HAZARD_KEYWORDS = [  # checked in order, first match wins
     ("Hygiene and food safety", r"mice|mouse|\brats?\b|droppings|sewage|won't drain|smells bad"),
     ("Routine repair", r"\btap\b|cupboard|tile|\block\b|\bgate\b|toilet seat|squeak\w*"),
 ]
-EMERGENCY_KEYWORDS = r"\bgas\b|spark\w*|live wires?|exposed wires?|wires? hanging|ceiling (has )?(fallen|collapsed|came down)|hole in the floor"
+EMERGENCY_KEYWORDS = (
+    r"\bgas\b|spark\w*|(live|exposed|bare) wires?|wires? (hanging|sticking out)"
+    r"|ceiling (has )?(fallen|collapsed|came down)|hole in the (\w+ ){0,2}floor"
+)
 VULNERABILITY_KEYWORDS = [
     ("Young child", r"\bbaby\b|newborn|toddler|\bchild\w*|\bson\b|son's|daughter|\bkids?\b"),
     ("Older person", r"elderly|older|pensioner|(dad|mum|mother|father|nan|grandad) is \d+"),

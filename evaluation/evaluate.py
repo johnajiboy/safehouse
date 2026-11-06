@@ -7,11 +7,12 @@ Your Intake Agent must write a CSV with these columns:
 Run:  python evaluate.py predictions/baseline.csv
       python evaluate.py predictions/safehome.csv
       python evaluate.py predictions/baseline.csv predictions/safehome.csv   (side by side)
+      python evaluate.py --labels handwritten/labels.csv --results handwritten/results handwritten/predictions/safehome.csv
 Output: printed results, plus results/<name>.json
 """
+import argparse
 import csv
 import json
-import sys
 from collections import Counter, defaultdict
 from itertools import combinations
 from pathlib import Path
@@ -30,8 +31,8 @@ def prf(tp, fp, fn):
     return p, r, f
 
 
-def score(pred_path):
-    labels = {r["id"]: r for r in csv.DictReader(open("data/labels.csv", encoding="utf-8"))}
+def score(pred_path, labels_path="data/labels.csv"):
+    labels = {r["id"]: r for r in csv.DictReader(open(labels_path, encoding="utf-8"))}
     preds = {r["id"]: r for r in csv.DictReader(open(pred_path, encoding="utf-8"))}
     ids = [i for i in labels if i in preds]
     missing = [i for i in labels if i not in preds]
@@ -160,11 +161,15 @@ def show(results):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        sys.exit("Usage: python evaluate.py predictions/<file>.csv [more files...]")
-    out = [score(p) for p in sys.argv[1:]]
-    Path("results").mkdir(exist_ok=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("predictions", nargs="+", help="prediction CSV files to score side by side")
+    parser.add_argument("--labels", default="data/labels.csv", help="the answer key")
+    parser.add_argument("--results", default="results", help="folder for the JSON results")
+    args = parser.parse_args()
+    out = [score(p, args.labels) for p in args.predictions]
+    results = Path(args.results)
+    results.mkdir(parents=True, exist_ok=True)
     for r in out:
-        Path(f"results/{Path(r['file']).stem}.json").write_text(json.dumps(r, indent=2))
+        (results / f"{Path(r['file']).stem}.json").write_text(json.dumps(r, indent=2))
     show(out)
-    print("\nFull results saved in results/")
+    print(f"\nFull results saved in {results}/")

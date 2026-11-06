@@ -26,13 +26,20 @@ def building_of(address: str) -> str:
     return address.strip()
 
 
+def shared_building(address: str) -> str | None:
+    """'Flat 9, Elm House' -> 'Elm House'. Houses return None: sharing a street is not sharing a building."""
+    match = re.match(r"^\s*flat\s+\w+\s*,\s*(.+)$", address, flags=re.IGNORECASE)
+    return match.group(1).strip() if match else None
+
+
 def find_clusters(cases: list[Case], now: datetime) -> list[Cluster]:
     since = now - timedelta(days=config.PATTERN_WINDOW_DAYS)
     by_building: dict[str, list[Case]] = {}
     for case in cases:
-        if case.reported_at < since or case.hazard not in RELATED_HAZARDS:
+        building = shared_building(case.address)
+        if not building or case.reported_at < since or case.hazard not in RELATED_HAZARDS:
             continue
-        by_building.setdefault(building_of(case.address), []).append(case)
+        by_building.setdefault(building, []).append(case)
 
     clusters = []
     for building, group in by_building.items():

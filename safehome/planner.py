@@ -49,18 +49,21 @@ class Plan:
 
 
 def build_plan(cases: list[Case], inspectors: int, now: datetime, survey_groups: list[list[str]] | None = None) -> Plan:
-    """Fill today's visits in priority order. A grouped building survey uses one visit."""
+    """Fill today's visits in priority order. A grouped building survey uses one visit.
+
+    Cases an officer moved to today always get a visit, even past capacity. Cases moved
+    to later only get one if visits are left over. Today's list is then shown by score.
+    """
     plan = Plan(capacity=inspectors * config.VISITS_PER_INSPECTOR)
     plan.investigated = [c for c in cases if c.stage >= 1]
     plan.routine = [c for c in cases if c.stage == 0 and c.level == ROUTINE]
     waiting = [c for c in cases if c.stage == 0 and c.level != ROUTINE]
 
-    # Officer overrides go first or last; everything else by score, then oldest first.
-    waiting.sort(key=lambda c: (
-        0 if c.pinned == "today" else 2 if c.pinned == "later" else 1,
-        -priority(c, now),
-        c.reported_at,
-    ))
+    def rank(c: Case):
+        return -priority(c, now), c.reported_at
+
+    # Fill in this order: officer "today" overrides, everything else, then "later" overrides.
+    waiting.sort(key=lambda c: (0 if c.pinned == "today" else 2 if c.pinned == "later" else 1, *rank(c)))
 
     group_of = {}
     for group in survey_groups or []:
@@ -71,7 +74,7 @@ def build_plan(cases: list[Case], inspectors: int, now: datetime, survey_groups:
     for case in waiting:
         group = group_of.get(case.ref)
         costs_a_visit = not (group and group in groups_counted)
-        if not costs_a_visit or plan.visits_used < plan.capacity:
+        if not costs_a_visit or plan.visits_used < plan.capacity or case.pinned == "today":
             plan.today.append(case)
             if costs_a_visit:
                 plan.visits_used += 1
@@ -80,6 +83,7 @@ def build_plan(cases: list[Case], inspectors: int, now: datetime, survey_groups:
         else:
             plan.later.append(case)
 
+    plan.today.sort(key=rank)
     plan.at_risk = [c for c in plan.later if may_miss_deadline(c, now)]
     return plan
 
