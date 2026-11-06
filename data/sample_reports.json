@@ -1,0 +1,18 @@
+[
+  {"address": "Flat 4, Ash Court", "area": "Newport", "hours_ago": 18, "text": "Gas smell near the boiler since this morning. My dad is 81 and lives with me."},
+  {"address": "12 Mill Row", "area": "North Ormesby", "hours_ago": 13, "text": "Sparks came from the socket when I plugged in the heater, and now the wall feels hot."},
+  {"address": "Flat 9, Elm House", "area": "Berwick Hills", "working_days_ago": 9, "text": "The mould in my son's bedroom is back and he's coughing all night. I've reported this twice."},
+  {"address": "7 Station Walk", "area": "Linthorpe", "working_days_ago": 9, "text": "No heating for over a week. We've been using a small plug-in heater. My mum is elderly and feels the cold."},
+  {"address": "22 Oak Terrace", "area": "Acklam", "working_days_ago": 9, "text": "The stair handrail came away from the wall last month and it's still not fixed."},
+  {"address": "Flat 2, Birch Court", "area": "Park End", "working_days_ago": 9, "text": "Big crack across the bedroom ceiling, and plaster is starting to drop."},
+  {"address": "5 Chapel Lane", "area": "Marton", "working_days_ago": 9, "text": "Mice in the kitchen and droppings near the food cupboards. I have a toddler."},
+  {"address": "Flat 11, Elm House", "area": "Berwick Hills", "working_days_ago": 4, "text": "Flat is freezing even with the radiators on. I'm pregnant and worried."},
+  {"address": "3 Quarry Road", "area": "Hemlington", "working_days_ago": 6, "text": "Bath won't drain and the water smells bad."},
+  {"address": "18 Oak Terrace", "area": "Acklam", "working_days_ago": 2, "text": "Back step has broken and I use a walking frame."},
+  {"address": "Flat 6, Elm House", "area": "Berwick Hills", "working_days_ago": 3, "text": "Black mould behind the wardrobe, and the walls feel wet."},
+  {"address": "9 Mill Row", "area": "North Ormesby", "working_days_ago": 1, "text": "The bedroom gets dangerously hot and the windows won't open."},
+  {"address": "Flat 3, Birch Court", "area": "Park End", "working_days_ago": 5, "text": "Light switch buzzes and the lights flicker when it's turned on."},
+  {"address": "14 Station Walk", "area": "Linthorpe", "working_days_ago": 7, "text": "Damp patch keeps growing on the living room wall."},
+  {"address": "31 Cedar Grove", "area": "Marton", "working_days_ago": 1, "text": "The kitchen tap has been dripping for a few days."},
+  {"address": "2 Willow Close", "area": "Hemlington", "hours_ago": 2, "text": "Something's wrong with the loft hatch and I'm worried about it."}
+]

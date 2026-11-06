@@ -1,0 +1,1531 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>SafeHome</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        background: #0b1130;
+        color: #f4efe4;
+        font:
+          15px/1.5 "Geist",
+          "Segoe UI",
+          system-ui,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      p {
+        margin: 0;
+      }
+      h1,
+      h2 {
+        margin: 0;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+        padding: 0;
+      }
+      :focus-visible {
+        outline: 2px solid #79e6ff;
+        outline-offset: 2px;
+        border-radius: 8px;
+      }
+      .tag3d b {
+        font-weight: 600;
+      }
+    </style>
+    <style>
+      /* Landing: one deliberate night scene, whatever the viewer's theme. A lit cutaway house sits under a lifted roof. */
+      :root {
+        --night: #0b1130;
+        --night-2: #141c47;
+        --moon: #f4efe4;
+        --moon-dim: #b5b9d2;
+        --amber: #ffbe6b;
+        --coral: #ff6f59;
+        --agent: #79e6ff;
+        --safe: #7fe0a8;
+        --glass: rgba(11, 17, 48, 0.72);
+        --glass-line: rgba(244, 239, 228, 0.16);
+      }
+      #landing {
+        position: relative;
+        background: radial-gradient(120% 90% at 65% 15%, var(--night-2), var(--night) 65%);
+        color: var(--moon);
+        font-family: "Geist", "Segoe UI", system-ui, sans-serif;
+      }
+      .stage {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        height: 100svh;
+        overflow: hidden;
+      }
+      #scene {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .tag3d {
+        position: absolute;
+        left: 0;
+        top: 0;
+        pointer-events: none;
+        max-width: 230px;
+        background: var(--glass);
+        border: 1px solid var(--glass-line);
+        border-radius: 9px;
+        padding: 7px 10px;
+        font-size: 13px;
+        line-height: 1.35;
+        color: var(--moon);
+        backdrop-filter: blur(8px);
+        opacity: 0;
+        will-change: transform;
+      }
+      .tag3d b {
+        display: block;
+        font-weight: 600;
+      }
+      .tag3d.hot b {
+        color: var(--coral);
+      }
+      .tag3d.cool b {
+        color: var(--agent);
+      }
+      .fallback {
+        display: none;
+        position: absolute;
+        right: 8%;
+        top: 22%;
+        width: min(46vw, 460px);
+        max-width: 80%;
+      }
+      .no3d #scene {
+        display: none;
+      }
+      .no3d .fallback {
+        display: block;
+      }
+      .landnav {
+        position: absolute;
+        top: env(safe-area-inset-top, 0px);
+        left: 0;
+        right: 0;
+        z-index: 3;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding-block: 18px;
+        padding-left: max(24px, env(safe-area-inset-left, 0px));
+        padding-right: max(24px, env(safe-area-inset-right, 0px));
+      }
+      .landnav strong {
+        font:
+          700 19px "Bricolage Grotesque",
+          "Geist",
+          sans-serif;
+        letter-spacing: -0.02em;
+      }
+      .landnav span {
+        font-size: 13px;
+        color: var(--moon-dim);
+      }
+      .chapters {
+        position: relative;
+        z-index: 2;
+        margin-top: -100vh;
+        margin-top: -100svh;
+      }
+      .chapter {
+        min-height: 100vh;
+        min-height: 100svh;
+        display: flex;
+        align-items: center;
+        padding-block: 90px 40px;
+        padding-left: max(24px, env(safe-area-inset-left, 0px));
+        padding-right: max(24px, env(safe-area-inset-right, 0px));
+      }
+      .copy {
+        max-width: 470px;
+        min-width: 0;
+        display: grid;
+        gap: 14px;
+        will-change: opacity;
+      }
+      .copy:not([data-ch="0"]) {
+        background: var(--glass);
+        border: 1px solid var(--glass-line);
+        border-radius: 14px;
+        padding: 22px;
+        backdrop-filter: blur(10px);
+      }
+      .copy .eyebrow {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--agent);
+      }
+      .copy h1,
+      .copy h2 {
+        font-family: "Bricolage Grotesque", "Geist", sans-serif;
+        font-weight: 700;
+        letter-spacing: -0.035em;
+        line-height: 1.02;
+        color: var(--moon);
+      }
+      .copy h1 {
+        font-size: clamp(46px, 7.2vw, 92px);
+      }
+      .copy h2 {
+        font-size: clamp(34px, 4.6vw, 58px);
+      }
+      .copy p {
+        font-size: 18px;
+        line-height: 1.5;
+        color: var(--moon-dim);
+      }
+      .cta {
+        justify-self: start;
+        background: var(--moon);
+        color: var(--night);
+        font-weight: 600;
+        font-size: 15px;
+        padding: 12px 18px;
+        border-radius: 999px;
+        transition: transform 0.15s;
+      }
+      .cta:hover {
+        transform: translateY(-2px);
+      }
+      .cta:focus-visible {
+        outline-color: var(--agent);
+      }
+      .cue {
+        font-size: 14px;
+        color: var(--moon-dim);
+      }
+      .miniplan {
+        list-style: none;
+        padding: 0;
+        display: grid;
+        gap: 0;
+        border-top: 1px solid var(--glass-line);
+      }
+      .miniplan li {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--glass-line);
+        font-size: 15px;
+        color: var(--moon);
+      }
+      .miniplan li::before {
+        display: none;
+      }
+      .miniplan span {
+        color: var(--moon-dim);
+      }
+      .player {
+        position: fixed;
+        z-index: 5;
+        right: max(24px, env(safe-area-inset-right, 0px));
+        bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 5px;
+        border-radius: 99px;
+        background: var(--glass);
+        border: 1px solid var(--glass-line);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        color: var(--moon);
+        max-width: calc(100% - 32px);
+      }
+      .player button {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        color: var(--moon);
+        transition: background 0.15s;
+      }
+      .player button:hover {
+        background: rgba(244, 239, 228, 0.12);
+      }
+      .player button:focus-visible {
+        outline: 2px solid var(--agent);
+        outline-offset: 1px;
+      }
+      .player svg {
+        width: 15px;
+        height: 15px;
+        fill: currentColor;
+      }
+      .segs {
+        display: flex;
+        gap: 2px;
+        padding: 0 6px;
+      }
+      .player .seg {
+        width: 34px;
+        border-radius: 6px;
+      }
+      .seg i {
+        display: block;
+        width: 100%;
+        height: 3px;
+        border-radius: 3px;
+        background: rgba(244, 239, 228, 0.22);
+        overflow: hidden;
+      }
+      .seg b {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: var(--agent);
+      }
+      .player .skip {
+        width: auto;
+        padding: 0 14px;
+        border-radius: 99px;
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .enter.ready {
+        animation: ctaPulse 1.8s ease-in-out infinite;
+      }
+      @keyframes ctaPulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(121, 230, 255, 0.55);
+        }
+        60% {
+          box-shadow: 0 0 0 12px rgba(121, 230, 255, 0);
+        }
+      }
+      @media (max-width: 820px) {
+        .player {
+          top: calc(env(safe-area-inset-top, 0px) + 58px);
+          bottom: auto;
+          right: auto;
+          left: 50%;
+          transform: translateX(-50%);
+        }
+        .player .seg {
+          width: 20px;
+        }
+        .player button {
+          width: 30px;
+          height: 30px;
+        }
+        .player .skip {
+          padding: 0 10px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .enter.ready {
+          animation: none;
+        }
+      }
+      .brandbtn {
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      @media (max-width: 820px) {
+        .chapter {
+          align-items: flex-end;
+          padding-bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+        }
+        .copy {
+          background: var(--glass);
+          border: 1px solid var(--glass-line);
+          border-radius: 14px;
+          padding: 18px;
+          backdrop-filter: blur(10px);
+        }
+        .copy h1 {
+          font-size: 44px;
+        }
+        .copy p {
+          font-size: 16px;
+        }
+        .tag3d {
+          max-width: 170px;
+          font-size: 12px;
+        }
+        .landnav span {
+          display: none;
+        }
+        .fallback {
+          right: 12%;
+          top: 12%;
+          width: 76vw;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cta {
+          transition: none;
+        }
+      }
+      .dashlink {
+        color: #f4efe4;
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        padding: 7px 14px;
+        border-radius: 99px;
+        border: 1px solid rgba(244, 239, 228, 0.25);
+      }
+    </style>
+  </head>
+  <body>
+    <section id="landing" aria-label="SafeHome introduction">
+      <div class="stage">
+        <div class="landnav">
+          <strong>SafeHome</strong><a class="dashlink" href="/dashboard.html">Open dashboard</a>
+        </div>
+        <canvas
+          id="scene"
+          aria-label="A 3D cutaway house at night, with a glowing agent moving between its rooms"
+        ></canvas>
+        <svg class="fallback" viewBox="0 0 400 340" aria-hidden="true">
+          <path d="M40 150 200 30l160 120v170H40z" fill="#141c47" stroke="#ffbe6b" stroke-width="3" />
+          <path d="M200 150v170M40 235h320" stroke="#ffbe6b" stroke-width="2" />
+          <circle cx="118" cy="280" r="14" fill="#ff6f59" />
+          <circle cx="270" cy="190" r="12" fill="#79e6ff" />
+        </svg>
+        <div id="tags"></div>
+      </div>
+      <div class="chapters">
+        <div class="chapter">
+          <div class="copy" data-ch="0">
+            <p class="eyebrow">Social housing hazard response</p>
+            <h1>Every home is telling you something.</h1>
+            <p>
+              SafeHome's agents read tenant reports, spot hidden patterns, and help housing officers act before people
+              are harmed.
+            </p>
+            <button class="cta enter">Open today's plan</button
+            ><span class="cue">The story plays on its own. Scroll or use the controls to take over.</span>
+          </div>
+        </div>
+        <div class="chapter">
+          <div class="copy" data-ch="1">
+            <p class="eyebrow">Intake Agent</p>
+            <h2>It reads what the tenant actually said.</h2>
+            <p>
+              Messy messages become clear facts: the hazard, who lives there, and what's still missing. If a safety
+              detail is unclear, it suggests a question to ask.
+            </p>
+          </div>
+        </div>
+        <div class="chapter">
+          <div class="copy" data-ch="2">
+            <p class="eyebrow">Legal rules</p>
+            <h2>The law sets the clock.</h2>
+            <p>
+              Fixed rules apply the Awaab's Law categories and deadlines. No AI model can change a legal deadline or
+              quietly lower a risk.
+            </p>
+          </div>
+        </div>
+        <div class="chapter">
+          <div class="copy" data-ch="3">
+            <p class="eyebrow">Pattern Agent</p>
+            <h2>Three homes. One possible cause.</h2>
+            <p>
+              Separate reports can look routine. Together, they may point to a shared problem that one survey could
+              investigate.
+            </p>
+          </div>
+        </div>
+        <div class="chapter">
+          <div class="copy" data-ch="4">
+            <p class="eyebrow">Planner and officer</p>
+            <h2>The right visits first. A person decides.</h2>
+            <ol class="miniplan">
+              <li>Gas smell, Flat 4 <span>6 hours</span></li>
+              <li>Sparks from socket, 12 Mill Row <span>11 hours</span></li>
+              <li>Mould with a young child, Flat 9 <span>1 day</span></li>
+            </ol>
+            <p>
+              Limited inspectors go where risk and deadlines matter most. The officer confirms or overrides every
+              recommendation.
+            </p>
+            <button class="cta enter">Open today's plan</button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <script>
+      (function () {
+        const land = document.getElementById("landing"),
+          canvas = document.getElementById("scene"),
+          stage = canvas.parentElement;
+        let running = true,
+          startLoop = () => {};
+        document.querySelectorAll(".enter").forEach(
+          (b) =>
+            (b.onclick = () => {
+              location.href = "/dashboard.html";
+            }),
+        );
+        const copies = [...document.querySelectorAll(".copy")];
+        const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+        const progress = () => clamp(window.scrollY / Math.max(1, stage.offsetHeight), 0, 4);
+        const fadeCopy = (p) =>
+          copies.forEach((c, i) => {
+            c.style.opacity = Math.max(0.15, 1 - Math.abs(p - i) * 1.25);
+          });
+        let ok = !!window.THREE;
+        if (ok) {
+          try {
+            const g = document.createElement("canvas");
+            ok = !!(g.getContext("webgl") || g.getContext("experimental-webgl"));
+          } catch (e) {
+            ok = false;
+          }
+        }
+        if (!ok) {
+          land.classList.add("no3d");
+          return;
+        }
+        const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const T = THREE,
+          renderer = new T.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.outputEncoding = T.sRGBEncoding;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = T.PCFSoftShadowMap;
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        const scene = new T.Scene();
+        scene.fog = new T.Fog(0x0b1130, 30, 90);
+        const camera = new T.PerspectiveCamera(36, 1, 0.1, 220);
+        scene.add(new T.HemisphereLight(0x6f7fe0, 0x0a0d26, 0.2));
+        const moon = new T.DirectionalLight(0xa9b6ff, 0.28);
+        moon.position.set(-8, 16, 12);
+        moon.castShadow = true;
+        moon.shadow.mapSize.set(1536, 1536);
+        Object.assign(moon.shadow.camera, { left: -11, right: 11, top: 11, bottom: -11, far: 50 });
+        scene.add(moon);
+        const mat = (c, o = {}) => new T.MeshStandardMaterial({ color: c, roughness: 0.82, metalness: 0.02, ...o });
+        function box(w, h, d, c, x, y, z, parent, o) {
+          const m = new T.Mesh(new T.BoxGeometry(w, h, d), o || mat(c));
+          m.position.set(x, y, z);
+          m.castShadow = true;
+          m.receiveShadow = true;
+          (parent || scene).add(m);
+          return m;
+        }
+        /* Ground and stars */
+        const ground = new T.Mesh(new T.CircleGeometry(70, 64), mat(0x070b22));
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.3;
+        ground.receiveShadow = true;
+        scene.add(ground);
+        const sg = new T.BufferGeometry(),
+          sa = [];
+        for (let i = 0; i < 500; i++) {
+          const a = Math.random() * 6.28,
+            r = 25 + Math.random() * 50;
+          sa.push(Math.cos(a) * r, 8 + Math.random() * 36, Math.sin(a) * r - 14);
+        }
+        sg.setAttribute("position", new T.Float32BufferAttribute(sa, 3));
+        scene.add(
+          new T.Points(
+            sg,
+            new T.PointsMaterial({
+              color: 0xf4efe4,
+              size: 0.14,
+              transparent: true,
+              opacity: 0.8,
+              fog: false,
+            }),
+          ),
+        );
+        /* Materials: brick and slate */
+        function canvasTex(draw, rx, ry) {
+          const c = document.createElement("canvas");
+          c.width = c.height = 256;
+          draw(c.getContext("2d"));
+          const t = new T.CanvasTexture(c);
+          t.wrapS = t.wrapT = T.RepeatWrapping;
+          t.encoding = T.sRGBEncoding;
+          t.anisotropy = 4;
+          t.repeat.set(rx, ry);
+          return t;
+        }
+        function brickMat(w, h, hue = 12, sat = 42, lit = 34) {
+          return new T.MeshStandardMaterial({
+            roughness: 0.92,
+            map: canvasTex(
+              (x) => {
+                x.fillStyle = "#5d5751";
+                x.fillRect(0, 0, 256, 256);
+                const bw = 64,
+                  bh = 256 / 12;
+                for (let r = 0; r < 12; r++)
+                  for (let k = -1; k < 5; k++) {
+                    const o = r % 2 ? bw / 2 : 0;
+                    x.fillStyle = `hsl(${hue + (Math.random() * 8 - 4)},${sat}%,${lit + (Math.random() * 10 - 5)}%)`;
+                    x.fillRect(k * bw + o + 2, r * bh + 2, bw - 4, bh - 3);
+                  }
+              },
+              w / 1.1,
+              h / 1.1,
+            ),
+          });
+        }
+        function slateMat(w, d) {
+          return new T.MeshStandardMaterial({
+            roughness: 0.7,
+            metalness: 0.1,
+            map: canvasTex(
+              (x) => {
+                x.fillStyle = "#1b1f2c";
+                x.fillRect(0, 0, 256, 256);
+                const tw = 32,
+                  th = 256 / 10;
+                for (let r = 0; r < 10; r++)
+                  for (let k = -1; k < 9; k++) {
+                    const o = r % 2 ? tw / 2 : 0,
+                      l = 26 + Math.random() * 9;
+                    x.fillStyle = `hsl(225,14%,${l}%)`;
+                    x.fillRect(k * tw + o + 1, r * th + 1, tw - 2, th - 2);
+                  }
+              },
+              w / 1.3,
+              d / 1.3,
+            ),
+          });
+        }
+        const shared = {
+          frame: mat(0xeeeeea),
+          dark: mat(0x22263a),
+          pot: mat(0x9a4a32),
+          glassDoor: new T.MeshStandardMaterial({ color: 0x223, emissive: 0xffc27a, emissiveIntensity: 0.6 }),
+        };
+        function frameAround(x, y, z, w, h, parent, depth = 0.04) {
+          const t = 0.06;
+          [
+            [w + t * 2, t, 0, h / 2 + t / 2],
+            [w + t * 2, t, 0, -h / 2 - t / 2],
+            [t, h, -w / 2 - t / 2, 0],
+            [t, h, w / 2 + t / 2, 0],
+            [t, h, 0, 0],
+          ].forEach(([fw, fh, dx, dy]) => box(fw, fh, depth, 0, x + dx, y + dy, z, parent, shared.frame));
+        }
+        /* The house */
+        const house = new T.Group();
+        scene.add(house);
+        box(6.5, 0.28, 4.5, 0x4a4f63, 0, -0.14, 0, house);
+        box(6.3, 0.14, 4.3, 0xc9b08a, 0, 2, 0, house);
+        box(6.5, 4.1, 0.18, 0, 0, 2, -2.2, house, brickMat(6.5, 4.1));
+        box(0.18, 4.1, 4.5, 0, -3.2, 2, 0, house, brickMat(4.5, 4.1));
+        box(0.18, 4.1, 4.5, 0, 3.2, 2, 0, house, brickMat(4.5, 4.1));
+        box(0.06, 1.75, 0.9, 0x7a1f2b, 3.31, 0.88, 1.1, house);
+        box(0.05, 0.05, 0.12, 0xd8b66a, 3.35, 0.9, 0.8, house);
+        box(0.1, 4.2, 0.1, 0, 3.34, 2.05, -2.3, house, shared.dark);
+        box(0.14, 4, 4.3, 0xd9cfbc, 0, 2, 0, house);
+        [
+          [-1.55, 1, 0x8fae9b],
+          [1.55, 1, 0xc98b6c],
+          [-1.55, 3.05, 0x7b8fb8],
+          [1.55, 3.05, 0xe7cf8c],
+        ].forEach(([x, y, c]) => box(3, 1.85, 0.05, c, x, y, -2.09, house));
+        function win(x, y) {
+          box(
+            0.95,
+            0.85,
+            0.03,
+            0x9dc1ff,
+            x,
+            y,
+            -2.05,
+            house,
+            new T.MeshStandardMaterial({ color: 0x8fb4ff, emissive: 0x5474d8, emissiveIntensity: 0.8 }),
+          );
+          frameAround(x, y, -2.03, 0.95, 0.85, house);
+        }
+        win(0.75, 1.25);
+        win(-0.85, 3.25);
+        win(2.2, 3.25);
+        /* Kitchen */
+        box(2.7, 0.8, 0.6, 0xf0e7d6, -1.55, 0.4, -1.75, house);
+        box(0.8, 0.04, 0.5, 0x15161c, -1.6, 0.82, -1.75, house);
+        box(2.1, 0.5, 0.3, 0xe3d9c4, -1.8, 1.6, -1.88, house);
+        box(0.65, 1.7, 0.6, 0xbfc7cf, -2.65, 0.85, -1.1, house);
+        box(1.05, 0.08, 0.75, 0x8f6a4a, -1.25, 0.68, 0.45, house);
+        box(0.08, 0.65, 0.08, 0x6c4e36, -1.25, 0.33, 0.45, house);
+        /* Living room and stairs */
+        box(5, 0.03, 0, 0, 0, 0, 0, house).visible = false;
+        const rug = new T.Mesh(new T.CircleGeometry(1, 40), mat(0x4b4266));
+        rug.rotation.x = -Math.PI / 2;
+        rug.position.set(1.65, 0.02, 0.8);
+        rug.receiveShadow = true;
+        house.add(rug);
+        box(1.8, 0.4, 0.65, 0x58709c, 1.65, 0.3, 0.25, house);
+        box(1.8, 0.45, 0.16, 0x4b618a, 1.65, 0.6, -0.02, house);
+        for (let i = 0; i < 8; i++)
+          box(0.3, 0.24 * (i + 1), 0.65, 0xa78a64, 0.35 + i * 0.3, 0.12 * (i + 1), -1.75, house);
+        /* Bedroom */
+        box(1.4, 0.28, 1.8, 0xeee6d8, -1.85, 2.3, -0.95, house);
+        box(1.4, 0.12, 0.45, 0xffffff, -1.85, 2.48, -1.6, house);
+        box(1.42, 0.1, 1.1, 0x6c7fb7, -1.85, 2.47, -0.55, house);
+        box(0.75, 1.35, 0.5, 0x7d6049, -0.45, 2.75, -1.75, house);
+        const moulds = [];
+        [
+          [-2.75, 3.6, 0.34],
+          [-2.42, 3.82, 0.22],
+          [-2.95, 3.3, 0.2],
+          [-2.3, 3.45, 0.16],
+          [-0.92, 3.72, 0.2],
+        ].forEach(([x, y, r]) => {
+          const m = new T.Mesh(
+            new T.CircleGeometry(r, 20),
+            new T.MeshStandardMaterial({ color: 0x1d2a24, roughness: 1, transparent: true, opacity: 0 }),
+          );
+          m.position.set(x, y, -2.05);
+          house.add(m);
+          moulds.push(m);
+        });
+        /* Nursery */
+        box(1.1, 0.08, 0.75, 0xf8f4ea, 1.8, 2.48, -1.2, house);
+        [
+          [1.27, -1.57],
+          [2.33, -1.57],
+          [1.27, -0.83],
+          [2.33, -0.83],
+        ].forEach(([x, z]) => box(0.07, 0.75, 0.07, 0xf1e7d5, x, 2.46, z, house));
+        for (let i = 0; i < 9; i++) box(0.03, 0.42, 0.03, 0xf1e7d5, 1.33 + i * 0.117, 2.75, -0.83, house);
+        box(0.5, 0.32, 0.5, 0xee8f7c, 0.7, 2.25, -0.5, house);
+        /* Lifted roof */
+        const roof = new T.Group();
+        house.add(roof);
+        const roofMat = slateMat(7, 3);
+        [-1, 1].forEach((s) => {
+          const p = box(7, 0.14, 3, 0, 0, 0.75, s * 1.2, roof, roofMat);
+          p.rotation.x = s * 0.62;
+        });
+        box(0.55, 1.3, 0.55, 0, 1.8, 1.45, -0.9, roof, brickMat(0.6, 1.3));
+        [[1.68], [1.92]].forEach(([x]) => {
+          const pot = new T.Mesh(new T.CylinderGeometry(0.08, 0.1, 0.3, 10), shared.pot);
+          pot.position.set(x, 2.25, -0.9);
+          roof.add(pot);
+        });
+        [-1, 1].forEach((s) => box(7.1, 0.12, 0.14, 0, 0, -0.13, s * 2.45, roof, shared.dark));
+        /* Room lights */
+        const lamps = [
+          [-1.55, 1.65, 0.2],
+          [1.6, 1.7, 0.5],
+          [-1.5, 3.7, 0.2],
+          [1.6, 3.7, 0.2],
+        ].map(([x, y, z]) => {
+          const l = new T.PointLight(0xffb765, 0, 7, 2);
+          l.position.set(x, y, z);
+          house.add(l);
+          return l;
+        });
+        /* Gas hazard */
+        const gasCount = 70,
+          gasG = new T.BufferGeometry(),
+          gasP = new Float32Array(gasCount * 3),
+          gasSeed = [];
+        for (let i = 0; i < gasCount; i++) {
+          gasSeed.push(Math.random());
+          gasP[i * 3] = -1.6;
+          gasP[i * 3 + 1] = 0.9;
+          gasP[i * 3 + 2] = -1.75;
+        }
+        gasG.setAttribute("position", new T.BufferAttribute(gasP, 3));
+        const gasM = new T.PointsMaterial({
+          color: 0xff6f59,
+          size: 0.13,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+        });
+        scene.add(new T.Points(gasG, gasM));
+        const ring = new T.Mesh(
+          new T.TorusGeometry(0.42, 0.018, 10, 50),
+          new T.MeshBasicMaterial({ color: 0xff6f59, transparent: true, opacity: 0 }),
+        );
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(-1.6, 0.86, -1.75);
+        scene.add(ring);
+        /* Agent */
+        const agent = new T.Group();
+        scene.add(agent);
+        const core = new T.Mesh(
+          new T.IcosahedronGeometry(0.17, 1),
+          new T.MeshStandardMaterial({
+            color: 0xbff3ff,
+            emissive: 0x79e6ff,
+            emissiveIntensity: 1.8,
+            flatShading: true,
+          }),
+        );
+        agent.add(core);
+        const ringA = new T.Mesh(new T.TorusGeometry(0.31, 0.012, 8, 60), new T.MeshBasicMaterial({ color: 0x79e6ff }));
+        agent.add(ringA);
+        const beam = new T.Mesh(
+          new T.ConeGeometry(0.6, 1.3, 32, 1, true),
+          new T.MeshBasicMaterial({
+            color: 0x79e6ff,
+            transparent: true,
+            opacity: 0.1,
+            side: T.DoubleSide,
+            depthWrite: false,
+          }),
+        );
+        beam.position.y = -0.72;
+        agent.add(beam);
+        const glow = new T.PointLight(0x79e6ff, 0.8, 4);
+        agent.add(glow);
+        const trailN = 30,
+          trailG = new T.BufferGeometry(),
+          trailP = new Float32Array(trailN * 3);
+        trailG.setAttribute("position", new T.BufferAttribute(trailP, 3));
+        scene.add(
+          new T.Points(
+            trailG,
+            new T.PointsMaterial({
+              color: 0x79e6ff,
+              size: 0.05,
+              transparent: true,
+              opacity: 0.55,
+              depthWrite: false,
+            }),
+          ),
+        );
+        const patrol = new T.CatmullRomCurve3(
+          [
+            [-1.6, 1.45, -0.6],
+            [1.5, 1.45, 0.9],
+            [2.2, 1.65, -0.4],
+            [1.6, 3.5, 0.3],
+            [-1.2, 3.5, 0.3],
+            [-2.2, 3.4, -0.9],
+            [-0.2, 4.4, 1.6],
+          ].map((a) => new T.Vector3(...a)),
+          true,
+        );
+        const agentKeys = [null, [-1.6, 1.75, -1.6], [-1.6, 1.55, -1.35], [0, 7.6, 2], [0, 7.2, 1.6]].map(
+          (a) => a && new T.Vector3(...a),
+        );
+        /* Neighbours: a brick terrace and a block of flats */
+        const neighbours = [];
+        const winMat = () =>
+          new T.MeshStandardMaterial({ color: 0x15151f, emissive: 0xffbe6b, emissiveIntensity: 0.5 });
+        function gable(g, x, w, rise) {
+          const sh = new T.Shape();
+          sh.moveTo(-w, 0);
+          sh.lineTo(w, 0);
+          sh.lineTo(0, rise);
+          const m = new T.Mesh(new T.ShapeGeometry(sh), brickMat(w * 2, rise));
+          m.material.side = T.DoubleSide;
+          m.rotation.y = Math.PI / 2;
+          m.position.set(x, 4, 0);
+          g.add(m);
+        }
+        function terrace(x, door, hit) {
+          const g = new T.Group();
+          g.position.set(x, 0, -1);
+          scene.add(g);
+          box(6, 4, 4, 0, 0, 2, 0, g, brickMat(6, 4));
+          const rm = slateMat(6.4, 2.8);
+          [-1, 1].forEach((s) => {
+            const p = box(6.4, 0.12, 2.75, 0, 0, 4.8, s * 1.12, g, rm);
+            p.rotation.x = s * 0.62;
+          });
+          gable(g, -3, 2.24, 1.6);
+          gable(g, 3, 2.24, 1.6);
+          box(0.5, 1.1, 0.5, 0, 1.8, 5.6, -0.5, g, brickMat(0.6, 1.1));
+          const pot = new T.Mesh(new T.CylinderGeometry(0.08, 0.1, 0.3, 10), shared.pot);
+          pot.position.set(1.8, 6.3, -0.5);
+          g.add(pot);
+          box(6.5, 0.12, 0.14, 0, 0, 3.95, 2.12, g, shared.dark);
+          const ws = [];
+          [
+            [-1.6, 1.25],
+            [1.6, 1.25],
+            [-1.6, 3],
+            [1.6, 3],
+          ].forEach(([wx, wy]) => {
+            const w = new T.Mesh(new T.PlaneGeometry(1, 1), winMat());
+            w.position.set(wx, wy, 2.01);
+            g.add(w);
+            ws.push(w);
+            frameAround(wx, wy, 2.03, 1, 1, g);
+          });
+          box(0.8, 1.75, 0.08, door, 0, 0.88, 2.03, g);
+          box(0.95, 0.1, 0.2, 0, 0, 1.85, 2.1, g, shared.frame);
+          box(0.5, 0.9, 0.55, 0x2f5d3a, 2.4, 0.42, 2.7, g);
+          neighbours.push({ g, ws, hit });
+          return g;
+        }
+        function flats(x) {
+          const g = new T.Group();
+          g.position.set(x, 0, -1);
+          scene.add(g);
+          box(7, 6.2, 4.4, 0, 0, 3.1, 0, g, brickMat(7, 6.2, 32, 38, 46));
+          box(7.2, 0.3, 4.6, 0x3a3f55, 0, 6.35, 0, g);
+          const ws = [];
+          [-2.2, 0, 2.2].forEach((wx) =>
+            [1.3, 3.2, 5.1].forEach((wy) => {
+              if (wx === 0 && wy === 1.3) return;
+              const w = new T.Mesh(new T.PlaneGeometry(1.1, 1), winMat());
+              w.position.set(wx, wy, 2.21);
+              g.add(w);
+              ws.push(w);
+              frameAround(wx, wy, 2.23, 1.1, 1, g);
+            }),
+          );
+          box(1.1, 1.8, 0.06, 0, 0, 0.9, 2.22, g, shared.glassDoor);
+          const sc = document.createElement("canvas");
+          sc.width = 512;
+          sc.height = 128;
+          const sx = sc.getContext("2d");
+          sx.fillStyle = "#e9e4d8";
+          sx.fillRect(0, 0, 512, 128);
+          sx.fillStyle = "#1d2340";
+          sx.font = "bold 66px sans-serif";
+          sx.textAlign = "center";
+          sx.textBaseline = "middle";
+          sx.fillText("ELM HOUSE", 256, 68);
+          const st = new T.CanvasTexture(sc);
+          st.encoding = T.sRGBEncoding;
+          const sign = new T.Mesh(new T.PlaneGeometry(1.6, 0.4), new T.MeshBasicMaterial({ map: st }));
+          sign.position.set(0, 2.05, 2.24);
+          g.add(sign);
+          box(0.5, 0.9, 0.55, 0x1f2433, 3, 0.42, 2.9, g);
+          box(0.5, 0.9, 0.55, 0x2f5d3a, 3.6, 0.42, 2.9, g);
+          neighbours.push({ g, ws, hit: true });
+          return g;
+        }
+        terrace(-8.4, 0x1f3f73, true);
+        terrace(-14.4, 0x23262f, false);
+        flats(9.6);
+        terrace(17, 0x7a1f2b, false);
+        /* Street */
+        box(70, 0.16, 1.9, 0x34384f, 0, -0.22, 3.25);
+        box(70, 0.2, 0.14, 0x50566f, 0, -0.19, 4.2);
+        const road = new T.Mesh(new T.PlaneGeometry(90, 5.2), mat(0x0c1028, { roughness: 0.55 }));
+        road.rotation.x = -Math.PI / 2;
+        road.position.set(0, -0.27, 6.85);
+        road.receiveShadow = true;
+        scene.add(road);
+        const dashM = new T.MeshBasicMaterial({ color: 0x9a988c });
+        for (let x = -40; x <= 40; x += 3.2) {
+          const d = new T.Mesh(new T.PlaneGeometry(1.5, 0.12), dashM);
+          d.rotation.x = -Math.PI / 2;
+          d.position.set(x, -0.26, 6.85);
+          scene.add(d);
+        }
+        const streetLights = [];
+        function lampPost(x) {
+          box(0.12, 4, 0.12, 0, x, 1.8, 4, null, shared.dark);
+          box(0.7, 0.08, 0.1, 0, x + 0.3, 3.8, 4, null, shared.dark);
+          box(
+            0.36,
+            0.12,
+            0.22,
+            0,
+            x + 0.6,
+            3.72,
+            4,
+            null,
+            new T.MeshStandardMaterial({ color: 0xffe2b0, emissive: 0xffcf8a, emissiveIntensity: 1.6 }),
+          );
+          const l = new T.PointLight(0xffc98a, 0.7, 8, 2);
+          l.position.set(x + 0.6, 3.5, 4.2);
+          scene.add(l);
+          streetLights.push(l);
+        }
+        lampPost(-17.6);
+        lampPost(13.4);
+        function tree(x, z) {
+          const tr = new T.Mesh(new T.CylinderGeometry(0.12, 0.16, 1.6, 8), mat(0x3b2c22));
+          tr.position.set(x, 0.6, z);
+          tr.castShadow = true;
+          scene.add(tr);
+          [
+            [0, 2, 0, 1],
+            [0.4, 1.6, 0.2, 0.75],
+            [-0.4, 1.7, -0.1, 0.7],
+          ].forEach(([dx, dy, dz, r]) => {
+            const c = new T.Mesh(new T.IcosahedronGeometry(r, 0), mat(0x1f3d33, { flatShading: true }));
+            c.position.set(x + dx, dy, z + dz);
+            c.castShadow = true;
+            scene.add(c);
+          });
+        }
+        tree(-19.6, 3.3);
+        tree(21.4, 3.3);
+        tree(4.6, 3.4);
+        box(0.5, 0.9, 0.55, 0x2f5d3a, 3.75, 0.25, 1.9);
+        box(0.5, 0.9, 0.55, 0x1f2433, 3.75, 0.25, 2.6);
+        /* Middlesbrough skyline: the Transporter Bridge */
+        const tb = new T.Group();
+        tb.position.set(8, -0.3, -100);
+        tb.scale.setScalar(0.72);
+        scene.add(tb);
+        const tbm = new T.MeshBasicMaterial({ color: 0x222c64, fog: false });
+        function tbBeam(a, b, th) {
+          const A = new T.Vector3(...a),
+            B = new T.Vector3(...b),
+            v = B.clone().sub(A);
+          const m = new T.Mesh(new T.BoxGeometry(th, v.length(), th), tbm);
+          m.position.copy(A).add(B).multiplyScalar(0.5);
+          m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), v.normalize());
+          tb.add(m);
+        }
+        [-13, 13].forEach((cx) => {
+          tbBeam([cx - 2.2, 0, 0], [cx - 0.5, 12, 0], 0.32);
+          tbBeam([cx + 2.2, 0, 0], [cx + 0.5, 12, 0], 0.32);
+          for (let k = 0; k < 4; k++) {
+            const y0 = k * 3,
+              y1 = y0 + 3,
+              w0 = 2.2 - (1.7 * y0) / 12,
+              w1 = 2.2 - (1.7 * y1) / 12;
+            tbBeam([cx - w0, y0, 0], [cx + w1, y1, 0], 0.1);
+            tbBeam([cx + w0, y0, 0], [cx - w1, y1, 0], 0.1);
+          }
+        });
+        tbBeam([-27, 12, 0], [27, 12, 0], 0.3);
+        tbBeam([-25, 14, 0], [25, 14, 0], 0.3);
+        for (let x = -25; x <= 25; x += 2.5) {
+          tbBeam([x, 12, 0], [x, 14, 0], 0.08);
+          if (x < 25) tbBeam([x, 12, 0], [x + 2.5, 14, 0], 0.06);
+        }
+        tbBeam([-27, 12, 0], [-35, 0, 0], 0.12);
+        tbBeam([27, 12, 0], [35, 0, 0], 0.12);
+        tbBeam([-3, 12, 0], [-3, 2.6, 0], 0.05);
+        tbBeam([-1, 12, 0], [-1, 2.6, 0], 0.05);
+        const gond = new T.Mesh(new T.BoxGeometry(3, 0.7, 1.4), tbm);
+        gond.position.set(-2, 2.3, 0);
+        tb.add(gond);
+        const beacons = [-13, 13].map((cx) => {
+          const b = new T.Mesh(
+            new T.SphereGeometry(0.22, 10, 8),
+            new T.MeshBasicMaterial({ color: 0xff4a3a, fog: false }),
+          );
+          b.position.set(cx, 14.4, 0);
+          tb.add(b);
+          return b;
+        });
+        const river = new T.Mesh(
+          new T.PlaneGeometry(260, 10),
+          new T.MeshBasicMaterial({ color: 0x111a4c, fog: false }),
+        );
+        river.rotation.x = -Math.PI / 2;
+        river.position.set(0, -0.29, -100);
+        scene.add(river);
+        /* People */
+        const skin = mat(0xc8a586);
+        function person(x, y, z, h, shirt, parent) {
+          const g = new T.Group();
+          g.position.set(x, y, z);
+          const s = h / 1.6;
+          const legs = new T.Mesh(new T.CylinderGeometry(0.12 * s, 0.1 * s, 0.72 * s, 10), mat(0x2b2f45));
+          legs.position.y = 0.36 * s;
+          const body = new T.Mesh(new T.CylinderGeometry(0.15 * s, 0.2 * s, 0.62 * s, 12), mat(shirt));
+          body.position.y = 1.02 * s;
+          const head = new T.Mesh(new T.SphereGeometry(0.15 * s, 16, 12), skin);
+          head.position.y = 1.48 * s;
+          [legs, body, head].forEach((m) => {
+            m.castShadow = true;
+            g.add(m);
+          });
+          (parent || scene).add(g);
+          return g;
+        }
+        const tenant = person(-0.75, 0.07, -0.75, 1.45, 0x5d7fae, house);
+        tenant.rotation.y = -0.6;
+        const child = person(-0.95, 2.07, -0.25, 0.85, 0xe0a050, house);
+        const baby = new T.Group();
+        [
+          [0, 0, 0, 0.13],
+          [0.17, 0.03, 0, 0.09],
+        ].forEach(([dx, dy, dz, r]) => {
+          const m = new T.Mesh(new T.SphereGeometry(r, 14, 10), dx ? skin : mat(0xf3d7c9));
+          m.position.set(dx, dy, dz);
+          baby.add(m);
+        });
+        baby.scale.set(1.4, 1, 1);
+        baby.position.set(1.75, 2.66, -1.2);
+        house.add(baby);
+        const officer = person(4.9, -0.14, 3.15, 1.55, 0x1f6f69);
+        officer.rotation.y = -1.9;
+        const tablet = new T.Mesh(
+          new T.BoxGeometry(0.28, 0.2, 0.02),
+          new T.MeshStandardMaterial({ color: 0x0b2a2a, emissive: 0x4fd1c0, emissiveIntensity: 1.4 }),
+        );
+        tablet.position.set(0.1, 0.95, 0.18);
+        tablet.rotation.x = -0.6;
+        officer.add(tablet);
+        officer.visible = false;
+        /* Repair van */
+        const van = new T.Group();
+        van.position.set(-30, -0.27, 6.1);
+        scene.add(van);
+        const vanWhite = mat(0xe7eaee, { roughness: 0.45 });
+        box(2.3, 1.1, 1.1, 0, 0, 0.92, 0, van, vanWhite);
+        box(0.85, 0.82, 1.06, 0, 1.5, 0.78, 0, van, vanWhite);
+        box(2.32, 0.14, 1.12, 0x2bb3a6, 0, 0.82, 0, van);
+        box(
+          0.04,
+          0.42,
+          0.9,
+          0,
+          1.94,
+          0.98,
+          0,
+          van,
+          new T.MeshStandardMaterial({ color: 0x10182c, emissive: 0x2a3a66, emissiveIntensity: 0.4 }),
+        );
+        [-0.3, 0.3].forEach((z) =>
+          box(
+            0.04,
+            0.12,
+            0.18,
+            0,
+            1.94,
+            0.56,
+            z * 1.3,
+            van,
+            new T.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xfff0c0, emissiveIntensity: 2 }),
+          ),
+        );
+        const beaconV = new T.Mesh(
+          new T.BoxGeometry(0.3, 0.1, 0.2),
+          new T.MeshStandardMaterial({ color: 0xffb000, emissive: 0xff9a00, emissiveIntensity: 2 }),
+        );
+        beaconV.position.set(1.5, 1.24, 0);
+        van.add(beaconV);
+        const wheels = [];
+        [
+          [-0.75, 0.55],
+          [-0.75, -0.55],
+          [1.35, 0.55],
+          [1.35, -0.55],
+        ].forEach(([x, z]) => {
+          const w = new T.Mesh(new T.CylinderGeometry(0.24, 0.24, 0.16, 16), mat(0x111318));
+          w.rotation.x = Math.PI / 2;
+          w.position.set(x, 0.24, z);
+          van.add(w);
+          wheels.push(w);
+        });
+        const vanLight = new T.PointLight(0xfff0c0, 0, 6, 2);
+        vanLight.position.set(2.6, 0.6, 0);
+        van.add(vanLight);
+        /* Links between homes */
+        function arc(from, to) {
+          const c = new T.CatmullRomCurve3([
+            from,
+            from
+              .clone()
+              .lerp(to, 0.5)
+              .add(new T.Vector3(0, 3.2, 1.5)),
+            to,
+          ]);
+          const m = new T.Mesh(
+            new T.TubeGeometry(c, 50, 0.045, 8, false),
+            new T.MeshBasicMaterial({ color: 0x79e6ff, transparent: true, opacity: 0.95 }),
+          );
+          scene.add(m);
+          return m;
+        }
+        const arcs = [
+          arc(new T.Vector3(-1.5, 3.2, 0), new T.Vector3(-8.4, 3.1, 1.05)),
+          arc(new T.Vector3(1.5, 3.2, 0), new T.Vector3(8.6, 3.4, 1.3)),
+        ];
+        /* Floating labels */
+        const tagBox = document.getElementById("tags");
+        const tags = [
+          {
+            p: [-1.5, 1.4, -1.5],
+            ch: 1,
+            cls: "hot",
+            html: "<b>Possible gas leak</b>“Strong smell of gas, and my baby is at home.”",
+          },
+          {
+            p: [-1.5, 1.35, -1.5],
+            ch: 2,
+            cls: "hot",
+            html: "<b>Possible emergency</b>Investigate within 24 hours",
+          },
+          { p: [-1.6, 4.3, -1], ch: 3, cls: "cool", html: "<b>Report 1</b>Mould in the bedroom" },
+          { p: [-6.4, 5.7, 1], ch: 3, cls: "cool", html: "<b>Report 2</b>Damp walls" },
+          { p: [9.6, 7.1, 1.2], ch: 3, cls: "cool", html: "<b>Report 3</b>Cold rooms, Elm House" },
+          { p: [4.9, 2.9, 3.15], ch: 4, cls: "", html: "<b>Officer approves</b>Visit today" },
+          {
+            p: [0.6, 2.1, 6.1],
+            ch: 4,
+            cls: "cool",
+            html: "<b>Repairer booked</b>Gas Safe engineer arriving",
+          },
+        ].map((t) => {
+          const e = document.createElement("div");
+          e.className = "tag3d " + t.cls;
+          e.innerHTML = t.html;
+          tagBox.appendChild(e);
+          t.e = e;
+          t.v = new T.Vector3(...t.p);
+          return t;
+        });
+        /* Camera path */
+        const camKeys = [
+          [
+            [5.5, 4.8, 16.5],
+            [0, 2.9, 0],
+          ],
+          [
+            [-1.7, 2.3, 8],
+            [-1.5, 1.3, -1],
+          ],
+          [
+            [-1.7, 1.8, 5.6],
+            [-1.5, 1.05, -1.5],
+          ],
+          [
+            [0, 9, 31],
+            [0, 3, 0],
+          ],
+          [
+            [7, 7.2, 19],
+            [0, 3.1, 0],
+          ],
+        ].map(([a, b]) => [new T.Vector3(...a), new T.Vector3(...b)]);
+        const ss = (x) => x * x * (3 - 2 * x);
+        let W = 1,
+          H = 1,
+          narrow = false;
+        function resize() {
+          W = stage.clientWidth;
+          H = stage.clientHeight;
+          narrow = W <= 820;
+          renderer.setSize(W, H, false);
+          camera.aspect = W / H;
+          camera.fov = narrow ? 48 : 36;
+          if (narrow) camera.setViewOffset(W, H, 0, H * 0.2, W, H);
+          else camera.setViewOffset(W, H, -W * 0.17, 0, W, H);
+          camera.updateProjectionMatrix();
+        }
+        addEventListener("resize", resize);
+        resize();
+        let mx = 0,
+          my = 0,
+          smx = 0,
+          smy = 0,
+          sp = progress(),
+          firstFrame = true;
+        addEventListener(
+          "pointermove",
+          (e) => {
+            mx = e.clientX / innerWidth - 0.5;
+            my = e.clientY / innerHeight - 0.5;
+          },
+          { passive: true },
+        );
+        const t0 = performance.now(),
+          camPos = new T.Vector3(),
+          camTgt = new T.Vector3(),
+          ap = new T.Vector3(),
+          akA = new T.Vector3(),
+          proj = new T.Vector3(),
+          cold = new T.Color(0xffbe6b),
+          red = new T.Color(0xff5240),
+          safe = new T.Color(0xffd9a0);
+        const wt = (p, i) => clamp(1 - Math.abs(p - i) * 1.6);
+        let frame = null,
+          last = performance.now();
+        function draw(now) {
+          frame = null;
+          if (!running) return;
+          const t = reduce ? 6 : Math.max(0, (now - t0) / 1000);
+          const target = progress();
+          {
+            const dt = Math.min(0.25, (now - last) / 1000);
+            last = now;
+            sp = reduce || firstFrame ? target : sp + (target - sp) * (1 - Math.exp(-dt * 5));
+          }
+          firstFrame = false;
+          const p = sp;
+          fadeCopy(target);
+          smx += (mx - smx) * 0.05;
+          smy += (my - smy) * 0.05;
+          const i = Math.min(3, Math.floor(p)),
+            f = ss(p - i);
+          camPos.lerpVectors(camKeys[i][0], camKeys[i + 1][0], f);
+          camTgt.lerpVectors(camKeys[i][1], camKeys[i + 1][1], f);
+          const idle = reduce ? 0 : Math.sin(t * 0.22) * 0.7 * wt(p, 0);
+          camera.position.set(camPos.x + smx * 1.8 + idle, camPos.y - smy * 1, camPos.z);
+          camera.lookAt(camTgt);
+          /* Opening: roof lifts and rooms light up one by one */
+          const open = ss(clamp(t / 2.4));
+          const away = clamp((p - 0.1) / 0.5) * clamp((2.9 - p) / 0.5);
+          roof.position.y = 3.95 + open * 1.35 + away * 9 + (reduce ? 0 : Math.sin(t * 0.8) * 0.05);
+          roof.rotation.z = open * 0.05;
+          const hazard = clamp(p - 0.2, 0, 1) * clamp((3.6 - p) / 0.6);
+          lamps.forEach((l, n) => {
+            const on = ss(clamp((t - 0.3 - n * 0.35) / 0.6));
+            l.intensity = on * (n === 0 ? 0.5 + hazard * 0.75 : 0.5);
+          });
+          lamps[0].color
+            .copy(cold)
+            .lerp(red, hazard * (0.72 + Math.sin(t * 5) * 0.18))
+            .lerp(safe, clamp(p - 3));
+          /* Hazards */
+          const gas = wt(p, 1) * 0.95 + wt(p, 2) * 0.95;
+          gasM.opacity = gas;
+          ring.material.opacity = gas * (0.5 + 0.5 * Math.sin(t * 4));
+          const rs = 1 + ((t * 0.8) % 1) * 0.9;
+          ring.scale.set(rs, rs, 1);
+          for (let n = 0; n < gasCount; n++) {
+            const s = gasSeed[n],
+              a = (t * 0.22 + s) % 1;
+            gasP[n * 3] = -1.6 + Math.sin(s * 50 + t) * a * 0.75;
+            gasP[n * 3 + 1] = 0.88 + a * 1.05;
+            gasP[n * 3 + 2] = -1.75 + Math.cos(s * 40 + t * 0.8) * a * 0.55 + a * 0.35;
+          }
+          gasG.attributes.position.needsUpdate = true;
+          const m3 = clamp((p - 2.3) / 0.6) * clamp((4.1 - p) / 0.5);
+          moulds.forEach((m, n) => {
+            m.material.opacity = m3 * 0.9;
+            const s = 0.45 + m3 * 0.55 + Math.sin(t * 0.4 + n) * 0.02;
+            m.scale.set(s, s, 1);
+          });
+          /* Neighbours and links */
+          const link = wt(p, 3);
+          neighbours.forEach((n) => (n.g.visible = p > 2.25));
+          neighbours.forEach((n) =>
+            n.ws.forEach((w) => {
+              const on = n.hit ? link : 0;
+              w.material.emissive.copy(cold).lerp(new T.Color(0x79e6ff), on);
+              w.material.emissiveIntensity = 0.5 + on * 0.9;
+            }),
+          );
+          arcs.forEach((a) => {
+            const c = a.geometry.index.count;
+            a.geometry.setDrawRange(0, Math.floor(c * ss(clamp((p - 2.45) / 0.45)) * clamp((3.7 - p) / 0.3)));
+            a.visible = link > 0.01 || (p > 2.45 && p < 3.7);
+          });
+          /* Agent */
+          patrol.getPointAt((t * 0.045) % 1, ap);
+          ap.y += reduce ? 0 : Math.sin(t * 2) * 0.05;
+          if (p > 0) {
+            if (i === 0) akA.copy(agentKeys[1]);
+            else akA.lerpVectors(agentKeys[i], agentKeys[i + 1], f);
+            ap.lerp(akA, i === 0 ? f : 1);
+          }
+          agent.position.copy(ap);
+          core.rotation.set(t * 0.7, t, 0);
+          ringA.rotation.set(1.2 + Math.sin(t) * 0.3, t * 1.4, 0);
+          beam.material.opacity = (0.07 + 0.03 * Math.sin(t * 3)) * (1 - clamp((p - 2.8) / 0.5));
+          glow.intensity = 1.2 + 0.3 * Math.sin(t * 3);
+          for (let n = trailN - 1; n > 0; n--) {
+            trailP[n * 3] = trailP[(n - 1) * 3];
+            trailP[n * 3 + 1] = trailP[(n - 1) * 3 + 1];
+            trailP[n * 3 + 2] = trailP[(n - 1) * 3 + 2];
+          }
+          trailP[0] = ap.x;
+          trailP[1] = ap.y;
+          trailP[2] = ap.z;
+          trailG.attributes.position.needsUpdate = true;
+          /* People, street and arrival */
+          tenant.rotation.y = -0.6 + (reduce ? 0 : Math.sin(t * 0.6) * 0.25);
+          child.position.y = 2.07 + (reduce ? 0 : Math.abs(Math.sin(t * 1.6)) * 0.04);
+          beacons.forEach((b) => b.material.color.setHex(Math.sin(t * 2.4) > 0 ? 0xff4a3a : 0x5a1a20));
+          const vk = ss(clamp((p - 3.2) / 0.7));
+          van.visible = p > 3.15;
+          van.position.x = -30 + vk * 30.6;
+          wheels.forEach((w) => (w.rotation.y = -van.position.x / 0.24));
+          vanLight.intensity = van.visible ? 0.9 : 0;
+          beaconV.material.emissiveIntensity = 1 + Math.max(0, Math.sin(t * 8)) * 2;
+          const ok = ss(clamp((p - 3.55) / 0.3));
+          officer.visible = ok > 0.01;
+          officer.scale.setScalar(Math.max(0.01, ok));
+          renderer.render(scene, camera);
+          tags.forEach((g) => {
+            const o = clamp(1 - Math.abs(p - g.ch) * 2.8);
+            g.e.style.opacity = o;
+            if (o <= 0) return;
+            proj.copy(g.v).project(camera);
+            const x = clamp((proj.x * 0.5 + 0.5) * W - g.e.offsetWidth / 2, 10, W - g.e.offsetWidth - 10),
+              y = clamp((-proj.y * 0.5 + 0.5) * H - g.e.offsetHeight - 8, 62, H - 40);
+            g.e.style.transform = `translate(${x}px,${y}px)`;
+          });
+          if (!reduce || target !== sp) frame = requestAnimationFrame(draw);
+        }
+        startLoop = () => {
+          if (frame === null) frame = requestAnimationFrame(draw);
+        };
+        addEventListener("scroll", startLoop, { passive: true });
+        document.addEventListener("visibilitychange", () => {
+          running = !document.hidden && !land.hidden;
+          if (running) startLoop();
+        });
+        startLoop();
+      })();
+    </script>
+    <script>
+      (function () {
+        const land = document.getElementById("landing"),
+          stage = land.querySelector(".stage"),
+          N = 5,
+          DWELL = 6500;
+        const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const I = {
+          play: '<path d="M5 3.2v9.6L13 8z"/>',
+          pause: '<path d="M4.3 3h2.7v10H4.3zM9 3h2.7v10H9z"/>',
+          prev: '<path d="M12 3.5v9L5.5 8z"/><path d="M3.5 3.5h1.7v9H3.5z"/>',
+          next: '<path d="M4 3.5v9L10.5 8z"/><path d="M10.8 3.5h1.7v9h-1.7z"/>',
+        };
+        const svg = (k) => `<svg viewBox="0 0 16 16" aria-hidden="true">${I[k]}</svg>`;
+        const bar = document.createElement("div");
+        bar.className = "player";
+        bar.setAttribute("role", "group");
+        bar.setAttribute("aria-label", "Intro controls");
+        bar.innerHTML = `<button id="ip-prev" aria-label="Previous chapter">${svg("prev")}</button><button id="ip-play"></button><button id="ip-next" aria-label="Next chapter">${svg("next")}</button><div class="segs">${Array.from({ length: N }, (_, i) => `<button class="seg" data-seg="${i}" aria-label="Go to chapter ${i + 1}"><i><b></b></i></button>`).join("")}</div><button class="skip" id="ip-skip">Skip intro</button>`;
+        land.appendChild(bar);
+        const playBtn = bar.querySelector("#ip-play"),
+          fills = [...bar.querySelectorAll(".seg b")],
+          ctas = [...land.querySelectorAll(".enter")];
+        let playing = !reduce,
+          elapsed = 0,
+          tween = null,
+          last = performance.now(),
+          lastIdx = 0;
+        const H = () => stage.offsetHeight || innerHeight;
+        const idx = () => Math.max(0, Math.min(N - 1, Math.round(scrollY / H())));
+        function paint() {
+          playBtn.innerHTML = svg(playing ? "pause" : "play");
+          playBtn.setAttribute("aria-label", playing ? "Pause the intro" : "Play the intro");
+        }
+        function goTo(i) {
+          i = Math.max(0, Math.min(N - 1, i));
+          elapsed = 0;
+          const from = scrollY,
+            to = i * H();
+          if (reduce) {
+            tween = null;
+            scrollTo(0, to);
+            return;
+          }
+          tween = {
+            t0: performance.now(),
+            from,
+            to,
+            dur: Math.min(2200, 700 + (Math.abs(to - from) / H()) * 1200),
+          };
+        }
+        function stop() {
+          playing = false;
+          tween = null;
+          paint();
+        }
+        function tick(now) {
+          const dt = Math.min(1000, now - last);
+          last = now;
+          if (!land.hidden) {
+            if (tween) {
+              const k = Math.min(1, (now - tween.t0) / tween.dur),
+                e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+              scrollTo(0, tween.from + (tween.to - tween.from) * e);
+              if (k >= 1) tween = null;
+            } else if (playing) {
+              elapsed += dt;
+              if (elapsed >= DWELL) {
+                if (idx() >= N - 1) stop();
+                else goTo(idx() + 1);
+              }
+            }
+            const cur = idx();
+            if (cur !== lastIdx) {
+              lastIdx = cur;
+              if (!tween) elapsed = 0;
+            }
+            fills.forEach(
+              (f, i) =>
+                (f.style.width =
+                  (i < cur ? 100 : i > cur ? 0 : playing && !tween ? Math.min(100, (elapsed / DWELL) * 100) : 100) +
+                  "%"),
+            );
+            ctas.forEach((c) => c.classList.toggle("ready", cur === N - 1 && !playing));
+          }
+          requestAnimationFrame(tick);
+        }
+        const take = () => {
+          if (playing || tween) stop();
+        };
+        addEventListener(
+          "wheel",
+          () => {
+            if (!land.hidden) take();
+          },
+          { passive: true },
+        );
+        addEventListener(
+          "touchstart",
+          (e) => {
+            if (!land.hidden && !bar.contains(e.target)) take();
+          },
+          { passive: true },
+        );
+        land.addEventListener("pointerdown", (e) => {
+          if (!bar.contains(e.target) && !e.target.closest(".enter")) take();
+        });
+        addEventListener("keydown", (e) => {
+          if (land.hidden || e.target.closest("input,textarea")) return;
+          if (["ArrowDown", "ArrowRight", "PageDown"].includes(e.key)) {
+            e.preventDefault();
+            stop();
+            goTo(idx() + 1);
+          } else if (["ArrowUp", "ArrowLeft", "PageUp"].includes(e.key)) {
+            e.preventDefault();
+            stop();
+            goTo(idx() - 1);
+          } else if (e.key === " " && !e.target.closest("button")) {
+            e.preventDefault();
+            playing = !playing;
+            elapsed = 0;
+            paint();
+          }
+        });
+        bar.addEventListener("click", (e) => {
+          const b = e.target.closest("button");
+          if (!b) return;
+          if (b.id === "ip-prev") goTo(idx() - 1);
+          else if (b.id === "ip-next") goTo(idx() + 1);
+          else if (b.id === "ip-play") {
+            if (!playing && idx() === N - 1) goTo(0);
+            playing = !playing;
+            elapsed = 0;
+            paint();
+          } else if (b.id === "ip-skip") ctas[0].click();
+          else if (b.dataset.seg) goTo(+b.dataset.seg);
+        });
+        paint();
+        requestAnimationFrame(tick);
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SafeHome · Today's plan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap"
+    />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app" id="planner">
+      <aside class="rail">
+        <a class="logo" href="/" title="Back to the introduction">
+          <svg viewBox="0 0 28 28" aria-hidden="true">
+            <path d="M4 13 14 5l10 8v11H4z" />
+            <circle cx="14" cy="16" r="2.6" />
+          </svg>
+          SafeHome
+        </a>
+        <nav class="nav" id="nav" aria-label="Main"></nav>
+        <div class="agents" id="agents" aria-live="polite"></div>
+        <p class="railnote" id="source-note"></p>
+        <button class="navbtn themebtn" id="theme-toggle"></button>
+      </aside>
+
+      <main class="content">
+        <div class="inner">
+          <div id="view"></div>
+          <footer class="foot">
+            <p>
+              Deadlines follow the Awaab's Law Phase 2 guidance for social landlords in England, due to apply from
+              30 November 2026, subject to parliamentary approval. Map positions are approximate area locations,
+              not tenants' homes. A housing officer makes every final decision.
+            </p>
+            <button class="link" data-action="reset-demo">Reload sample data</button>
+          </footer>
+        </div>
+      </main>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+[
+  {"id": "northline", "name": "Northline Gas & Heating", "trades": ["gas", "heating"], "certification": "Gas Safe registered", "lat": 54.5680, "lng": -1.2300, "next_slot_hours": 2, "first_time_fix": 92, "emergency_callouts": true},
+  {"id": "southfield", "name": "Southfield Heating Co.", "trades": ["gas", "heating"], "certification": "Gas Safe registered", "lat": 54.5400, "lng": -1.1980, "next_slot_hours": 5, "first_time_fix": 86, "emergency_callouts": true},
+  {"id": "brightwire", "name": "Brightwire Electrical", "trades": ["electrical"], "certification": "Registered electrician", "lat": 54.5650, "lng": -1.2200, "next_slot_hours": 3, "first_time_fix": 95, "emergency_callouts": true},
+  {"id": "voltworks", "name": "Voltworks Repairs", "trades": ["electrical"], "certification": "Registered electrician", "lat": 54.5520, "lng": -1.2600, "next_slot_hours": 26, "first_time_fix": 90, "emergency_callouts": false},
+  {"id": "dryhome", "name": "Dryhome Damp & Ventilation", "trades": ["damp", "ventilation"], "certification": "Damp and ventilation specialist", "lat": 54.5530, "lng": -1.2150, "next_slot_hours": 24, "first_time_fix": 87, "emergency_callouts": false},
+  {"id": "ironside", "name": "Ironside Building Repairs", "trades": ["joinery", "structural", "general"], "certification": "Approved building contractor", "lat": 54.5300, "lng": -1.2500, "next_slot_hours": 20, "first_time_fix": 91, "emergency_callouts": true},
+  {"id": "clearpath", "name": "Clearpath Pest & Drainage", "trades": ["pest", "drainage"], "certification": "Pest control and drainage", "lat": 54.5690, "lng": -1.2050, "next_slot_hours": 30, "first_time_fix": 89, "emergency_callouts": false},
+  {"id": "allfix", "name": "Allfix Property Care", "trades": ["joinery", "damp", "drainage", "ventilation", "general"], "certification": "Approved general contractor", "lat": 54.5450, "lng": -1.2300, "next_slot_hours": 8, "first_time_fix": 81, "emergency_callouts": true}
+]

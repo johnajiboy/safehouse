@@ -1,0 +1,308 @@
+"""Joins the parts together: what happens when a report arrives or an officer acts."""
+from __future__ import annotations
+
+import json
+import zlib
+from datetime import datetime
+from functools import lru_cache
+
+from . import config, intake, messages, patterns, planner, repairs, rules, store
+from .hazards import EMERGENCY, ROUTINE, STAGES
+from .models import Case
+
+
+class NotFound(Exception):
+    pass
+
+
+class NotAllowed(Exception):
+    pass
+
+
+@lru_cache
+def load_areas() -> dict:
+    with open(config.DATA_DIR / "areas.json", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def locate(address: str, area: str) -> tuple[float | None, float | None]:
+    """Approximate map position: the area centre, nudged per building so pins don't overlap.
+
+    Exact homes are deliberately not shown, to protect tenants' privacy.
+    """
+    centre = load_areas().get(area)
+    if not centre:
+        return None, None
+    seed = zlib.crc32(patterns.building_of(address).encode())
+    return (
+        round(centre["lat"] + ((seed % 9) - 4) * 0.0012, 5),
+        round(centre["lng"] + (((seed >> 4) % 9) - 4) * 0.0018, 5),
+    )
+
+
+def require_case(ref: str) -> Case:
+    case = store.get_case(ref)
+    if case is None:
+        raise NotFound(f"No case {ref}")
+    return case
+
+
+# --- A report arrives ---------------------------------------------------------
+
+def submit_report(text: str, address: str, area: str, contact: str = "", reported_at: datetime | None = None,
+                  extraction=None) -> Case:
+    extraction = extraction or intake.extract(text)
+    decision = rules.decide_level(extraction, text)
+    lat, lng = locate(address, area)
+    case = Case(
+        ref=store.next_ref(),
+        text=text,
+        address=address,
+        area=area,
+        reported_at=reported_at or datetime.now(),
+        extraction=extraction,
+        level=decision.level,
+        level_reasons=decision.reasons,
+        lat=lat,
+        lng=lng,
+        contact=contact,
+    )
+    store.save_case(case)
+    store.log("Intake Agent", f"Read the report: {case.hazard} ({case.level}), using {extraction.source}", case.ref)
+
+    safety = messages.safety_message(case)
+    if safety:
+        store.add_message(case.ref, "Safety advice", safety, "sent")
+        store.log("Intake Agent", "Sent the pre-approved emergency safety message", case.ref)
+    return case
+
+
+# --- Views for the dashboard ----------------------------------------------------
+
+def survey_groups(now: datetime) -> list[list[str]]:
+    chosen = set(store.get_setting("surveys", []))
+    return [c.refs for c in patterns.find_clusters(store.all_cases(), now) if c.key in chosen]
+
+
+def current_plan(now: datetime) -> planner.Plan:
+    inspectors = store.get_setting("inspectors", config.DEFAULT_INSPECTORS)
+    return planner.build_plan(store.all_cases(), inspectors, now, survey_groups(now))
+
+
+def summary(case: Case, now: datetime) -> dict:
+    deadline = rules.investigation_deadline(case)
+    if case.stage >= 1:
+        due_text = "All steps recorded" if case.stage >= len(STAGES) - 1 else f"Next: {STAGES[case.stage + 1].lower()}"
+    else:
+        due_text = rules.describe_due(deadline, now)
+
+    if case.level == EMERGENCY:
+        urgency = 1.0
+    elif deadline:
+        total = (deadline - case.reported_at).total_seconds()
+        urgency = min(1.0, max(0.06, 1 - (deadline - now).total_seconds() / total))
+    else:
+        urgency = 0.05
+
+    return {
+        "ref": case.ref,
+        "address": case.address,
+        "area": case.area,
+        "hazard": case.hazard,
+        "level": case.level,
+        "due_text": due_text,
+        "due_at": deadline.isoformat() if deadline else None,
+        "due_soon": bool(deadline and deadline <= rules.add_working_days(now, 1)),
+        "urgency": round(urgency, 2),
+        "vulnerability": case.extraction.vulnerability,
+        "repeat": case.extraction.repeat,
+        "stage": case.stage,
+        "visit_confirmed": case.visit_confirmed,
+        "booked": bool(case.booking),
+        "overridden": bool(case.pinned),
+        "needs_review": case.extraction.hazard_confidence == "Low" or case.hazard == "Unclear",
+        "lat": case.lat,
+        "lng": case.lng,
+    }
+
+
+def plan_view(now: datetime) -> dict:
+    plan = current_plan(now)
+    cases = store.all_cases()
+    clusters = patterns.find_clusters(cases, now)
+    chosen = set(store.get_setting("surveys", []))
+    open_cases = [c for c in cases if c.stage == 0]
+    return {
+        "now": now.isoformat(timespec="minutes"),
+        "inspectors": store.get_setting("inspectors", config.DEFAULT_INSPECTORS),
+        "capacity": plan.capacity,
+        "visits_used": plan.visits_used,
+        "today": [summary(c, now) for c in plan.today],
+        "later": [summary(c, now) for c in plan.later],
+        "routine": [summary(c, now) for c in plan.routine],
+        "investigated": [summary(c, now) for c in plan.investigated],
+        "at_risk": [c.ref for c in plan.at_risk],
+        "clusters": [{**vars(c), "grouped": c.key in chosen} for c in clusters],
+        "counts": {
+            "open": len(open_cases),
+            "emergencies": sum(c.level == EMERGENCY for c in open_cases),
+            "booked_today": sum(bool(c.booking) for c in plan.today),
+        },
+    }
+
+
+def findings(case: Case) -> list[dict]:
+    ex = case.extraction
+    vulnerability_quotes = ex.quotes("household")
+    repeat_quotes = ex.quotes("repeat")
+    return [
+        {"field": "Hazard", "value": ex.hazard, "evidence": ex.quotes("hazard"), "confidence": ex.hazard_confidence,
+         "note": "No clear hazard words" if not ex.quotes("hazard") else ""},
+        {"field": "Level", "value": case.level, "evidence": ex.quotes("emergency"),
+         "confidence": "High" if case.level in (EMERGENCY, ROUTINE) else "Medium",
+         "note": "Set by the legal rules"},
+        {"field": "Household", "value": ", ".join(ex.vulnerability) or "No vulnerability stated",
+         "evidence": vulnerability_quotes,
+         "confidence": "High" if vulnerability_quotes else ("Low" if ex.vulnerability else "Medium"),
+         "note": "" if vulnerability_quotes else "Nothing in the report"},
+        {"field": "Repeat", "value": "Reported before" if ex.repeat else "Not stated", "evidence": repeat_quotes,
+         "confidence": "High" if repeat_quotes else ("Low" if ex.repeat else "Medium"),
+         "note": "" if repeat_quotes else "Nothing in the report"},
+    ]
+
+
+def case_view(ref: str, now: datetime) -> dict:
+    case = require_case(ref)
+    plan = current_plan(now)
+    view = summary(case, now)
+    view.update({
+        "text": case.text,
+        "contact": case.contact,
+        "reported_at": case.reported_at.isoformat(timespec="minutes"),
+        "source": case.extraction.source,
+        "evidence": [vars(e) for e in case.extraction.evidence],
+        "findings": findings(case),
+        "level_reasons": case.level_reasons,
+        "score": [{"reason": r, "points": p} for r, p in planner.score_breakdown(case, now)],
+        "questions": case.extraction.questions,
+        "stages": rules.stage_plan(case),
+        "in_today": any(c.ref == ref for c in plan.today),
+        "override_reason": case.override_reason,
+        "booking": case.booking,
+        "messages": store.messages_for(ref),
+        "trade_needed": repairs.trade_for(case) is not None,
+    })
+    return view
+
+
+def repairer_options(ref: str, now: datetime) -> list[dict]:
+    case = require_case(ref)
+    bookings = {}
+    for other in store.all_cases():
+        if other.booking and other.ref != ref:
+            bookings[other.booking["repairer_id"]] = bookings.get(other.booking["repairer_id"], 0) + 1
+    return repairs.shortlist(case, bookings, now)
+
+
+def repairers_view() -> list[dict]:
+    jobs = {}
+    for case in store.all_cases():
+        if case.booking:
+            jobs.setdefault(case.booking["repairer_id"], []).append(
+                {"ref": case.ref, "lat": case.lat, "lng": case.lng, "address": case.address}
+            )
+    return [{**r, "jobs": jobs.get(r["id"], [])} for r in repairs.load_repairers()]
+
+
+# --- Officer actions --------------------------------------------------------------
+
+def confirm_visit(ref: str) -> None:
+    case = require_case(ref)
+    case.visit_confirmed = True
+    store.save_case(case)
+    store.add_message(ref, "Visit confirmation", messages.visit_draft(case), "draft")
+    store.log("Officer", "Confirmed today's inspection visit", ref)
+
+
+def move(ref: str, to: str, reason: str, note: str = "") -> None:
+    if to not in ("today", "later"):
+        raise NotAllowed("Cases can only be moved to today or later")
+    if not reason:
+        raise NotAllowed("A reason is required for every override")
+    case = require_case(ref)
+    case.pinned = to
+    case.override_reason = reason + (f" ({note})" if note else "")
+    if to == "later":
+        case.visit_confirmed = False
+    store.save_case(case)
+    store.log("Officer", f"Override: moved to {to}. Reason: {case.override_reason}", ref)
+
+
+def record_stage(ref: str, now: datetime) -> str:
+    case = require_case(ref)
+    if case.stage >= len(STAGES) - 1:
+        raise NotAllowed("All legal steps are already recorded")
+    case.stage_times.append(now)
+    store.save_case(case)
+    step = STAGES[case.stage]
+    store.log("Officer", f"Recorded: {step.lower()}", ref)
+    if step == "Investigated":
+        store.add_message(ref, "Written summary", messages.written_summary_draft(case), "draft")
+        store.log("Intake Agent", "Drafted the written summary for officer approval", ref)
+    return step
+
+
+def book(ref: str, repairer_id: str, now: datetime) -> str:
+    case = require_case(ref)
+    if case.booking:
+        raise NotAllowed("This case already has a booking")
+    repairer = next((r for r in repairs.load_repairers() if r["id"] == repairer_id), None)
+    if repairer is None:
+        raise NotFound(f"No repairer {repairer_id}")
+    case.booking = {"repairer_id": repairer_id, "repairer_name": repairer["name"],
+                    "booked_at": now.isoformat(timespec="minutes")}
+    store.save_case(case)
+    store.add_message(ref, "Repair booking", messages.booking_draft(case, repairer["name"]), "draft")
+    store.log("Officer", f"Approved and booked {repairer['name']}", ref)
+    return repairer["name"]
+
+
+def cancel_booking(ref: str, reason: str, note: str = "") -> None:
+    if not reason:
+        raise NotAllowed("A reason is required to cancel a booking")
+    case = require_case(ref)
+    if not case.booking:
+        raise NotAllowed("This case has no booking")
+    name = case.booking["repairer_name"]
+    case.booking = None
+    store.save_case(case)
+    store.log("Officer", f"Cancelled the booking with {name}. Reason: {reason}" + (f" ({note})" if note else ""), ref)
+
+
+def approve_message(message_id: int, body: str | None = None) -> None:
+    message = store.get_message(message_id)
+    if message is None:
+        raise NotFound(f"No message {message_id}")
+    if message["status"] == "sent":
+        raise NotAllowed("This message has already been sent")
+    store.mark_sent(message_id, body)
+    store.log("Officer", f"Approved and sent: {message['kind'].lower()}", message["case_ref"])
+
+
+def set_inspectors(count: int) -> None:
+    if not 1 <= count <= 20:
+        raise NotAllowed("Inspectors must be between 1 and 20")
+    store.set_setting("inspectors", count)
+    store.log("Officer", f"Set inspectors on shift to {count}")
+
+
+def toggle_survey(key: str, now: datetime) -> bool:
+    clusters = {c.key: c for c in patterns.find_clusters(store.all_cases(), now)}
+    if key not in clusters:
+        raise NotFound("No such building pattern")
+    chosen = set(store.get_setting("surveys", []))
+    grouped = key not in chosen
+    chosen.symmetric_difference_update({key})
+    store.set_setting("surveys", sorted(chosen))
+    store.log("Officer", f"{'Grouped' if grouped else 'Ungrouped'} the {clusters[key].building} reports into one survey")
+    return grouped
