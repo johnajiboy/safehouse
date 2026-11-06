@@ -16,6 +16,7 @@ from .models import Evidence, Extraction
 
 SYSTEM_PROMPT = """You help a social housing repairs team in England read tenant reports.
 Record what the report says using the record_findings tool.
+Always answer by calling record_findings, never with plain text.
 
 Rules:
 - Only use what the tenant wrote. Do not guess or add facts.
@@ -74,7 +75,7 @@ def extract_with_claude(text: str) -> Extraction:
         max_tokens=800,
         system=SYSTEM_PROMPT,
         tools=[FINDINGS_TOOL],
-        tool_choice={"type": "tool", "name": "record_findings"},
+        tool_choice={"type": "auto"},
         messages=[{"role": "user", "content": f"Tenant report:\n\n{text}"}],
     )
     findings = next(block.input for block in response.content if block.type == "tool_use")

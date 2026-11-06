@@ -89,7 +89,7 @@ def main():
         else:
             for attempt in range(5):
                 try:
-                    msg = client.messages.create(model=MODEL, max_tokens=300, temperature=1,
+                    msg = client.messages.create(model=MODEL, max_tokens=300,
                                                  messages=[{"role": "user", "content": build_prompt(r)}])
                     text = msg.content[0].text.strip().strip('"')
                     break

@@ -65,7 +65,7 @@ def test_claude_answer_is_read_from_the_tool_call(monkeypatch):
 
     class FakeMessages:
         def create(self, **kwargs):
-            assert kwargs["tool_choice"]["name"] == "record_findings"
+            assert [t["name"] for t in kwargs["tools"]] == ["record_findings"]
             block = types.SimpleNamespace(type="tool_use", input=answer)
             return types.SimpleNamespace(content=[block])
 
