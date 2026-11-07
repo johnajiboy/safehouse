@@ -48,6 +48,22 @@ def add_officer(username: str, password: str) -> None:
                    (username, hash_password(password)))
 
 
+def ensure_default_officer() -> bool:
+    """Create the officer named in .env if there are no officer accounts yet. True if one was created."""
+    if not (config.OFFICER_USERNAME and config.OFFICER_PASSWORD):
+        return False
+    with store.connect() as db:
+        if db.execute("SELECT COUNT(*) FROM officers").fetchone()[0]:
+            return False
+    try:
+        add_officer(config.OFFICER_USERNAME, config.OFFICER_PASSWORD)
+    except ValueError as error:
+        print(f"Default officer not created: {error}. Check OFFICER_USERNAME and OFFICER_PASSWORD in .env.")
+        return False
+    store.log("Officer", f"Created the default officer account {config.OFFICER_USERNAME} from .env")
+    return True
+
+
 def remove_officer(username: str) -> None:
     with store.connect() as db:
         db.execute("DELETE FROM officers WHERE username = ?", (username,))

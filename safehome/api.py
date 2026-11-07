@@ -6,6 +6,7 @@ Then open http://localhost:8000
 from __future__ import annotations
 
 import posixpath
+from contextlib import asynccontextmanager
 from datetime import datetime
 from urllib.parse import unquote
 
@@ -17,7 +18,13 @@ from pydantic import BaseModel, Field
 from . import auth, config, messages, seed, service, simulation, store
 from .hazards import EMERGENCY, VULNERABILITY_TYPES
 
-app = FastAPI(title="SafeHome")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    auth.ensure_default_officer()
+    yield
+
+
+app = FastAPI(title="SafeHome", lifespan=lifespan)
 
 SESSION_COOKIE = "safehome_session"
 # Everything under /api/ needs an officer to be signed in, except these.

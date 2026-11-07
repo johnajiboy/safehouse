@@ -9,3 +9,5 @@ def offline_and_isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "test.db")
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "")
     monkeypatch.setattr(config, "DEMO_MODE", False)
+    monkeypatch.setattr(config, "OFFICER_USERNAME", "")
+    monkeypatch.setattr(config, "OFFICER_PASSWORD", "")
