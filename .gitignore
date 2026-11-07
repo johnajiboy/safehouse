@@ -10,3 +10,4 @@ evaluation/results/
 evaluation/handwritten/predictions/
 evaluation/handwritten/results/
 evaluation/handwritten/run.log
+.DS_Store
