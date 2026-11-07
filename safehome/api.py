@@ -46,6 +46,11 @@ async def require_officer(request: Request, call_next):
                 return JSONResponse({"detail": "Please sign in"}, status_code=401)
             return RedirectResponse("/login.html", status_code=303)
         request.state.officer = officer
+        token = store.current_officer.set(officer)  # so the decision log knows who acted
+        try:
+            return await call_next(request)
+        finally:
+            store.current_officer.reset(token)
     return await call_next(request)
 
 

@@ -3,10 +3,14 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextvars import ContextVar
 from datetime import datetime
 
 from . import config
 from .models import Case
+
+# The signed-in officer behind the current request, set by the API. Officer log entries record it.
+current_officer: ContextVar[str | None] = ContextVar("current_officer", default=None)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
@@ -27,7 +31,8 @@ CREATE TABLE IF NOT EXISTS log (
     at TEXT NOT NULL,
     actor TEXT NOT NULL,
     case_ref TEXT,
-    action TEXT NOT NULL
+    action TEXT NOT NULL,
+    officer TEXT
 );
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -49,6 +54,9 @@ def connect() -> sqlite3.Connection:
     db = sqlite3.connect(config.DB_PATH)
     db.row_factory = sqlite3.Row
     db.executescript(SCHEMA)
+    # Databases made before officers were recorded in the log need the extra column.
+    if "officer" not in {row["name"] for row in db.execute("PRAGMA table_info(log)")}:
+        db.execute("ALTER TABLE log ADD COLUMN officer TEXT")
     return db
 
 
@@ -120,11 +128,14 @@ def mark_sent(message_id: int, body: str | None = None) -> None:
 
 # --- Decision log ---------------------------------------------------------------
 
-def log(actor: str, action: str, case_ref: str | None = None) -> None:
+def log(actor: str, action: str, case_ref: str | None = None, officer: str | None = None) -> None:
+    """Record a decision. Officer decisions also record which officer made them."""
+    if actor == "Officer" and officer is None:
+        officer = current_officer.get()
     with connect() as db:
         db.execute(
-            "INSERT INTO log (at, actor, case_ref, action) VALUES (?, ?, ?, ?)",
-            (datetime.now().isoformat(timespec="seconds"), actor, case_ref, action),
+            "INSERT INTO log (at, actor, case_ref, action, officer) VALUES (?, ?, ?, ?, ?)",
+            (datetime.now().isoformat(timespec="seconds"), actor, case_ref, action, officer),
         )
 
 

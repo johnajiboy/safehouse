@@ -781,7 +781,7 @@ function renderLog() {
         .map(
           (e) => `
           <li><span class="t">${formatTime(e.at)}</span><span class="d ${kind(e)}"></span>
-          <span><strong>${escapeHtml(e.actor)}</strong>${e.case_ref ? ` · <span class="mono">${e.case_ref}</span>` : ""} · ${escapeHtml(e.action)}</span></li>`,
+          <span><strong>${escapeHtml(e.officer ? `${e.actor} ${e.officer}` : e.actor)}</strong>${e.case_ref ? ` · <span class="mono">${e.case_ref}</span>` : ""} · ${escapeHtml(e.action)}</span></li>`,
         )
         .join("")}
     </ol></section>`;

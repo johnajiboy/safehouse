@@ -60,7 +60,7 @@ def ensure_default_officer() -> bool:
     except ValueError as error:
         print(f"Default officer not created: {error}. Check OFFICER_USERNAME and OFFICER_PASSWORD in .env.")
         return False
-    store.log("Officer", f"Created the default officer account {config.OFFICER_USERNAME} from .env")
+    store.log("System", f"Created the default officer account {config.OFFICER_USERNAME} from .env")
     return True
 
 
@@ -119,7 +119,8 @@ def _start_session(username: str, now: datetime) -> str:
     with store.connect() as db:
         db.execute("INSERT INTO sessions (token_hash, username, expires_at) VALUES (?, ?, ?)",
                    (_token_hash(token), username, (now + timedelta(hours=SESSION_HOURS)).isoformat()))
-    store.log("Officer", f"{username} signed in" + (" (demo mode)" if username == DEMO_OFFICER else ""))
+    store.log("Officer", f"{username} signed in" + (" (demo mode)" if username == DEMO_OFFICER else ""),
+              officer=username)
     return token
 
 
