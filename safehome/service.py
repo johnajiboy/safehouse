@@ -80,7 +80,53 @@ def submit_report(text: str, address: str, area: str, contact: str = "", reporte
     if safety:
         store.add_message(case.ref, "Safety advice", safety, "sent")
         store.log("Intake Agent", "Sent the pre-approved emergency safety message", case.ref)
+    recommend(case, case.reported_at)
     return case
+
+
+# --- Repair Agent ---------------------------------------------------------------
+
+def booking_counts(exclude: str | None = None) -> dict[str, int]:
+    """Jobs already booked with each repairer, leaving out one case if given."""
+    counts: dict[str, int] = {}
+    for other in store.all_cases():
+        if other.booking and other.ref != exclude:
+            counts[other.booking["repairer_id"]] = counts.get(other.booking["repairer_id"], 0) + 1
+    return counts
+
+
+def recommend(case: Case, now: datetime, bookings: dict[str, int] | None = None) -> None:
+    """Save the Repair Agent's top repairer on the case. It only suggests: an officer must approve the booking."""
+    if case.booking:
+        return
+    options = repairs.shortlist(case, booking_counts(case.ref) if bookings is None else bookings, now, limit=1)
+    new = None
+    if options:
+        top = options[0]
+        new = {
+            "repairer_id": top["repairer"]["id"],
+            "repairer_name": top["repairer"]["name"],
+            "match": top["match"],
+            "reasons": repairs.reasons_for(top, case),
+            "made_at": now.isoformat(timespec="minutes"),
+        }
+    old = case.recommendation
+    if (old and new and (old["repairer_id"], old["match"]) == (new["repairer_id"], new["match"])) or old == new:
+        return
+    case.recommendation = new
+    store.save_case(case)
+    if new:
+        store.log("Repair Agent", f"Recommended {new['repairer_name']} ({new['match']}% match): "
+                  f"{'; '.join(new['reasons'])}. Waiting for officer approval", case.ref)
+    else:
+        store.log("Repair Agent", "No approved repairer is available to recommend", case.ref)
+
+
+def refresh_recommendations(now: datetime) -> None:
+    """Re-run the Repair Agent for every unbooked case, because bookings change who is free."""
+    bookings = booking_counts()
+    for case in store.all_cases():
+        recommend(case, now, bookings)
 
 
 # --- Views for the dashboard ----------------------------------------------------
@@ -126,6 +172,8 @@ def summary(case: Case, now: datetime) -> dict:
         "stage": case.stage,
         "visit_confirmed": case.visit_confirmed,
         "booked": bool(case.booking),
+        "suggested": None if case.booking or not case.recommendation else {
+            "name": case.recommendation["repairer_name"], "match": case.recommendation["match"]},
         "overridden": bool(case.pinned),
         "needs_review": case.extraction.hazard_confidence == "Low" or case.hazard == "Unclear",
         "lat": case.lat,
@@ -203,6 +251,7 @@ def case_view(ref: str, now: datetime) -> dict:
         "in_today": any(c.ref == ref for c in plan.today),
         "override_reason": case.override_reason,
         "booking": case.booking,
+        "recommendation": case.recommendation,
         "messages": store.messages_for(ref),
         "trade_needed": repairs.trade_for(case) is not None,
     })
@@ -211,11 +260,7 @@ def case_view(ref: str, now: datetime) -> dict:
 
 def repairer_options(ref: str, now: datetime) -> list[dict]:
     case = require_case(ref)
-    bookings = {}
-    for other in store.all_cases():
-        if other.booking and other.ref != ref:
-            bookings[other.booking["repairer_id"]] = bookings.get(other.booking["repairer_id"], 0) + 1
-    return repairs.shortlist(case, bookings, now)
+    return repairs.shortlist(case, booking_counts(ref), now)
 
 
 def repairers_view() -> list[dict]:
@@ -284,22 +329,33 @@ def record_stage(ref: str, now: datetime) -> str:
     return step
 
 
-def book(ref: str, repairer_id: str, now: datetime) -> str:
+def book(ref: str, repairer_id: str, now: datetime, reason: str = "", note: str = "") -> str:
+    """An officer approves a booking. Choosing someone other than the Repair Agent's suggestion needs a reason."""
     case = require_case(ref)
     if case.booking:
         raise NotAllowed("This case already has a booking")
     repairer = next((r for r in repairs.load_repairers() if r["id"] == repairer_id), None)
     if repairer is None:
         raise NotFound(f"No repairer {repairer_id}")
+    suggested = case.recommendation
+    differs = suggested is not None and suggested["repairer_id"] != repairer_id
+    if differs and not reason:
+        raise NotAllowed(f"The Repair Agent suggested {suggested['repairer_name']}. "
+                         "Give a reason for choosing a different repairer.")
     case.booking = {"repairer_id": repairer_id, "repairer_name": repairer["name"],
                     "booked_at": now.isoformat(timespec="minutes")}
     store.save_case(case)
     store.add_message(ref, "Repair booking", messages.booking_draft(case, repairer["name"]), "draft")
-    store.log("Officer", f"Approved and booked {repairer['name']}", ref)
+    if differs:
+        store.log("Officer", f"Approved and booked {repairer['name']} instead of the suggested "
+                  f"{suggested['repairer_name']}. Reason: {reason}" + (f" ({note})" if note else ""), ref)
+    else:
+        store.log("Officer", f"Approved and booked {repairer['name']}", ref)
+    refresh_recommendations(now)
     return repairer["name"]
 
 
-def cancel_booking(ref: str, reason: str, note: str = "") -> None:
+def cancel_booking(ref: str, reason: str, note: str = "", now: datetime | None = None) -> None:
     if not reason:
         raise NotAllowed("A reason is required to cancel a booking")
     case = require_case(ref)
@@ -309,6 +365,7 @@ def cancel_booking(ref: str, reason: str, note: str = "") -> None:
     case.booking = None
     store.save_case(case)
     store.log("Officer", f"Cancelled the booking with {name}. Reason: {reason}" + (f" ({note})" if note else ""), ref)
+    refresh_recommendations(now or datetime.now())
 
 
 def approve_message(message_id: int, body: str | None = None) -> None:

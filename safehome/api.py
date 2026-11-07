@@ -21,6 +21,7 @@ from .hazards import EMERGENCY, VULNERABILITY_TYPES
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     auth.ensure_default_officer()
+    service.refresh_recommendations(datetime.now())  # cases saved before the Repair Agent ran automatically
     yield
 
 
@@ -81,6 +82,8 @@ class ReasonIn(BaseModel):
 
 class BookIn(BaseModel):
     repairer_id: str
+    reason: str = ""  # needed when it isn't the Repair Agent's suggestion
+    note: str = ""
 
 
 class MessageIn(BaseModel):
@@ -204,7 +207,7 @@ def repairer_options(ref: str):
 
 @app.post("/api/cases/{ref}/book")
 def book(ref: str, body: BookIn):
-    return {"booked": run(service.book, ref, body.repairer_id, datetime.now())}
+    return {"booked": run(service.book, ref, body.repairer_id, datetime.now(), body.reason, body.note)}
 
 
 @app.post("/api/cases/{ref}/cancel-booking")

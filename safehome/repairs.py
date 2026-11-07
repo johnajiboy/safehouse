@@ -76,3 +76,18 @@ def shortlist(case: Case, bookings: dict[str, int], now, limit: int = 3) -> list
 
     matches.sort(key=lambda m: m["match"], reverse=True)
     return matches[:limit]
+
+
+def reasons_for(option: dict, case: Case) -> list[str]:
+    """Plain-English reasons behind a shortlisted repairer, for the officer and the decision log."""
+    repairer = option["repairer"]
+    hours = option["next_slot_hours"]
+    slot = f"{hours} hours" if hours < 24 else f"{round(hours / 24)} day{'s' if round(hours / 24) != 1 else ''}"
+    reasons = [f"{option['trade']}: can attend in {slot}, "
+               + ("before the deadline" if option["in_time"] else "after the deadline")]
+    if option["distance_km"] is not None:
+        reasons.append(f"{option['distance_km']} km away")
+    reasons.append(f"{repairer['first_time_fix']}% of jobs fixed first time")
+    if case.level == EMERGENCY and repairer["emergency_callouts"]:
+        reasons.append("Takes emergency call-outs")
+    return reasons

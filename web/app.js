@@ -297,6 +297,9 @@ function caseRow(item) {
   const chips = [
     item.visit_confirmed ? `<span class="chip acc">Visit confirmed</span>` : "",
     item.booked ? `<span class="chip ok">Repairer booked</span>` : "",
+    item.suggested
+      ? `<span class="chip agent">Suggested: ${escapeHtml(item.suggested.name)} · ${item.suggested.match}%</span>`
+      : "",
     item.overridden ? `<span class="chip warn">Overridden</span>` : "",
     item.needs_review ? `<span class="chip crit">Check report</span>` : "",
   ].join("");
@@ -428,8 +431,33 @@ function renderOverview(c) {
       </div>`
         : ""
     }
+    ${repairSuggestion(c)}
     ${c.override_reason ? `<div class="tip"><strong>Override reason:</strong> ${escapeHtml(c.override_reason)}</div>` : ""}
-    ${state.pending && state.pending.type !== "cancel" ? reasonBox(c) : overviewActions(c)}`;
+    ${["today", "later"].includes(state.pending?.type) ? reasonBox(c) : overviewActions(c)}`;
+}
+
+function repairSuggestion(c) {
+  if (c.booking) {
+    return `<div class="tip"><strong>Booked:</strong> ${escapeHtml(c.booking.repairer_name)}, approved by an officer.</div>`;
+  }
+  const r = c.recommendation;
+  if (!r) return "";
+  return `
+    <div class="sect">
+      <h3>Repair Agent suggests</h3>
+      <div class="rep best">
+        <div class="reptop">
+          <div><strong>Suggested: ${escapeHtml(r.repairer_name)} · ${r.match}%</strong></div>
+          <div class="match"><b>${r.match}%</b><span>match</span></div>
+        </div>
+        <ul class="dots">${r.reasons.map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ul>
+        <div class="acts">
+          <button class="btn primary" data-action="book" data-repairer="${r.repairer_id}">Approve and book</button>
+          <button class="btn" data-action="tab" data-tab="repairers">Choose another</button>
+        </div>
+      </div>
+      <p class="note">Nothing is booked until an officer approves it.</p>
+    </div>`;
 }
 
 function overviewActions(c) {
@@ -460,11 +488,18 @@ const REASONS = {
   ],
   today: ["New information from the tenant", "Higher risk than reported", "Officer judgement"],
   cancel: ["Repairer unavailable", "Wrong trade", "Tenant asked to rearrange", "Officer judgement"],
+  book: [
+    "Suggested repairer can't attend in time",
+    "Tenant asked for this repairer",
+    "Knows this property or a linked job",
+    "Officer judgement",
+  ],
 };
 const REASON_QUESTIONS = {
   later: "Why move this case to later?",
   today: "Why move this case to today?",
   cancel: "Why cancel this booking?",
+  book: "Why choose this repairer instead of the suggested one?",
 };
 
 function reasonBox(c) {
@@ -477,7 +512,8 @@ function reasonBox(c) {
           ? `<div class="alertbox"><strong>Possible emergency.</strong> Moving it could breach the 24-hour deadline.</div>`
           : ""
       }
-      ${p.error ? `<div class="alertbox" role="alert"><strong>Can't move this case.</strong> ${escapeHtml(p.error)}</div>` : ""}
+      ${p.type === "book" ? `<p>Booking <strong>${escapeHtml(p.name)}</strong>. The Repair Agent suggested ${escapeHtml(c.recommendation?.repairer_name || "another repairer")}.</p>` : ""}
+      ${p.error ? `<div class="alertbox" role="alert"><strong>${p.type === "book" ? "Can't book this repairer." : "Can't move this case."}</strong> ${escapeHtml(p.error)}</div>` : ""}
       <div class="reasons" role="radiogroup" aria-label="Reason">
         ${REASONS[p.type]
           .map(
@@ -540,19 +576,24 @@ function renderRepairerTab(c) {
     .map((option, i) => {
       const r = option.repairer;
       const isBooked = booking && booking.repairer_id === r.id;
+      const isSuggested = c.recommendation?.repairer_id === r.id;
+      // Booking anyone but the Repair Agent's suggestion asks for a reason first.
+      const bookAction = isSuggested || !c.recommendation
+        ? `data-action="book" data-repairer="${r.id}"`
+        : `data-action="start-book-other" data-repairer="${r.id}" data-name="${escapeHtml(r.name)}"`;
       const slot =
         option.next_slot_hours < 24
           ? `${option.next_slot_hours} hours`
           : `${Math.round(option.next_slot_hours / 24)} day${Math.round(option.next_slot_hours / 24) === 1 ? "" : "s"}`;
       return `
-        <article class="rep ${isBooked ? "booked" : i === 0 && !booking ? "best" : ""} rise" style="animation-delay:${i * 90}ms">
+        <article class="rep ${isBooked ? "booked" : isSuggested && !booking ? "best" : ""} rise" style="animation-delay:${i * 90}ms">
           <div class="reptop">
             <div><strong>${escapeHtml(r.name)}</strong><span class="sub">${escapeHtml(r.certification)} · ${option.trade}</span></div>
             <div class="match"><b>${option.match}%</b><span>match</span></div>
           </div>
           <div class="mbar"><i style="transform:scaleX(${option.match / 100})"></i></div>
           <div class="facts">
-            ${i === 0 ? `<span class="chip agent">Best match</span>` : ""}
+            ${isSuggested ? `<span class="chip agent">Suggested</span>` : ""}
             <span class="chip ${option.in_time ? "ok" : "warn"}">${option.in_time ? "Within deadline" : "After deadline"} · ${slot}</span>
             ${option.distance_km !== null ? `<span class="chip">${option.distance_km} km away</span>` : ""}
             <span class="chip">${r.first_time_fix}% fixed first time</span>
@@ -561,7 +602,7 @@ function renderRepairerTab(c) {
             ${
               isBooked
                 ? `<button class="btn" data-action="start-override" data-type="cancel">Cancel booking</button>`
-                : `<button class="btn ${i === 0 ? "primary" : ""}" data-action="book" data-repairer="${r.id}" ${booking ? "disabled" : ""}>Approve and book</button>`
+                : `<button class="btn ${isSuggested ? "primary" : ""}" ${bookAction} ${booking ? "disabled" : ""}>Approve and book</button>`
             }
           </div>
         </article>`;
@@ -570,7 +611,7 @@ function renderRepairerTab(c) {
 
   return `
     ${booking ? `<div class="tip"><strong>Booked:</strong> ${escapeHtml(booking.repairer_name)}, approved by the officer.</div>` : ""}
-    ${state.pending?.type === "cancel" ? reasonBox(c) : ""}
+    ${["cancel", "book"].includes(state.pending?.type) ? reasonBox(c) : ""}
     <div class="mapwrap"><div class="leafmap small" id="case-map"></div></div>
     <div class="reps">${cards || `<p class="empty">No approved repairer covers this trade.</p>`}</div>
     <p class="note">The agent suggests. An officer approves every booking.</p>`;
@@ -923,20 +964,25 @@ async function submitOverride(form) {
   const reason = new FormData(form).get("reason");
   const note = new FormData(form).get("note") || "";
   const ref = state.pending.ref;
-  if (state.pending.type === "cancel") {
-    await api(`/api/cases/${ref}/cancel-booking`, { method: "POST", body: { reason, note } });
-  } else {
-    try {
-      await api(`/api/cases/${ref}/move`, { method: "POST", body: { to: state.pending.type, reason, note } });
-    } catch (error) {
-      // Keep the form open so the officer can read why the move was refused.
-      Object.assign(state.pending, { reason, note, error: error.message });
-      render();
-      return;
+  const type = state.pending.type;
+  let booked = null;
+  try {
+    if (type === "cancel") {
+      await api(`/api/cases/${ref}/cancel-booking`, { method: "POST", body: { reason, note } });
+    } else if (type === "book") {
+      const body = { repairer_id: state.pending.repairer, reason, note };
+      booked = (await api(`/api/cases/${ref}/book`, { method: "POST", body })).booked;
+    } else {
+      await api(`/api/cases/${ref}/move`, { method: "POST", body: { to: type, reason, note } });
     }
+  } catch (error) {
+    // Keep the form open so the officer can read why it was refused.
+    Object.assign(state.pending, { reason, note, error: error.message });
+    render();
+    return;
   }
   state.pending = null;
-  toast("Override saved with its reason");
+  toast(booked ? `Booked ${booked}, with your reason logged` : "Override saved with its reason");
   await refresh();
 }
 
@@ -977,6 +1023,10 @@ const actions = {
     await api(`/api/cases/${state.selected}/confirm-visit`, { method: "POST" });
     toast("Visit confirmed. A message to the tenant is waiting for approval.");
     await refresh();
+  },
+  "start-book-other": (el) => {
+    state.pending = { type: "book", ref: state.selected, repairer: el.dataset.repairer, name: el.dataset.name, reason: "", note: "" };
+    render();
   },
   "start-override": (el) => {
     state.pending = { type: el.dataset.type, ref: state.selected, reason: "", note: "" };

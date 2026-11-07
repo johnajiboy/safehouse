@@ -60,6 +60,8 @@ class Case:
     pinned: str | None = None  # "today" or "later" when an officer overrides the plan
     override_reason: str = ""
     booking: dict | None = None  # {"repairer_id", "repairer_name", "booked_at"}
+    # The Repair Agent's top pick, waiting for an officer: {"repairer_id", "repairer_name", "match", "reasons", "made_at"}
+    recommendation: dict | None = None
 
     @property
     def stage(self) -> int:
