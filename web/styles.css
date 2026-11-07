@@ -253,6 +253,16 @@ button {
 .themebtn {
   border: 1px solid var(--line);
 }
+.demotag {
+  align-self: flex-start;
+  margin: -18px 0 0 6px;
+  padding: 2px 9px;
+  border-radius: 99px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 11.5px;
+  font-weight: 600;
+}
 mark.ev {
   color: inherit;
   border-radius: 4px;

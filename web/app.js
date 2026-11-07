@@ -30,6 +30,10 @@ async function api(path, options = {}) {
     ...options,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
+  if (response.status === 401) {
+    location.href = "/login.html"; // the session ended, so sign in again
+    throw new Error("Please sign in");
+  }
   if (!response.ok) {
     const problem = await response.json().catch(() => ({}));
     throw new Error(problem.detail || `Request failed (${response.status})`);
@@ -78,6 +82,7 @@ const ICONS = {
   log: '<path d="M7.5 5H17M7.5 10H17M7.5 15H17"/><circle cx="3.8" cy="5" r=".7"/><circle cx="3.8" cy="10" r=".7"/><circle cx="3.8" cy="15" r=".7"/>',
   sun: '<circle cx="10" cy="10" r="3.4"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7l1.3 1.3M14 14l1.3 1.3M4.7 15.3 6 14M14 6l1.3-1.3"/>',
   moon: '<path d="M16 12.3A6.5 6.5 0 0 1 7.7 4a6.5 6.5 0 1 0 8.3 8.3z"/>',
+  signout: '<path d="M8 3.5H4.5v13H8M12.5 6.5 16 10l-3.5 3.5M16 10H7.5"/>',
 };
 
 function icon(name) {
@@ -1084,8 +1089,23 @@ function setupThemeToggle() {
 // Start
 // ---------------------------------------------------------------------------
 
+async function setupSignOut() {
+  const button = document.getElementById("sign-out");
+  const { officer, demo } = await api("/api/me");
+  if (demo) {
+    document.querySelector(".rail .logo").insertAdjacentHTML("afterend", `<span class="demotag">Demo mode</span>`);
+  }
+  button.innerHTML = `${icon("signout")}<span class="lbl">Sign out ${escapeHtml(officer)}</span>`;
+  button.setAttribute("aria-label", `Sign out ${officer}`);
+  button.addEventListener("click", async () => {
+    await api("/api/logout", { method: "POST" }).catch(() => {});
+    location.href = "/login.html";
+  });
+}
+
 async function start() {
   setupThemeToggle();
+  setupSignOut().catch(() => {});
   try {
     await loadPlan();
     const first = state.plan.today[0];

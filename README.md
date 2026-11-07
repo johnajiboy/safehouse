@@ -25,10 +25,12 @@ cp .env.example .env               # then add your Anthropic API key to .env
 
 ```bash
 python -m safehome.seed            # load the sample reports
+python -m safehome.auth add <name> # create an officer account (asks for a password)
 uvicorn safehome.api:app --reload
 ```
 
-Open http://localhost:8000 for the intro, or http://localhost:8000/dashboard.html for the officer dashboard.
+Open http://localhost:8000 for the intro, http://localhost:8000/report.html for the tenant form, or
+http://localhost:8000/dashboard.html for the officer dashboard (you'll be asked to sign in).
 
 ## Test
 

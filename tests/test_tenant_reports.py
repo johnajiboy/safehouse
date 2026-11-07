@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from safehome import store
+from safehome import intake, store
 from safehome.api import app
 
 client = TestClient(app)
@@ -37,3 +37,21 @@ def test_unknown_needs_and_areas_are_refused():
     assert send(needs=["Not a need"]).status_code == 422
     assert send(area="Atlantis").status_code == 422
     assert store.all_cases() == []
+
+
+def test_no_household_question_when_needs_are_ticked():
+    ref = send(text="Black mould in the bedroom", needs=["Young child"]).json()["ref"]
+    assert not any(intake.asks_about_household(q) for q in store.get_case(ref).extraction.questions)
+
+
+def test_household_question_still_asked_when_nothing_is_ticked():
+    ref = send(text="Black mould in the bedroom").json()["ref"]
+    assert any(intake.asks_about_household(q) for q in store.get_case(ref).extraction.questions)
+
+
+def test_household_questions_are_recognised_however_they_are_worded():
+    assert intake.asks_about_household("Does anyone at home have a health or mobility need?")
+    assert intake.asks_about_household("Who lives in the flat with you?")
+    assert intake.asks_about_household("Are there young children or elderly people in the household?")
+    assert not intake.asks_about_household("What exactly has happened, and is anyone at risk right now?")
+    assert not intake.asks_about_household("Do you have another safe way to heat your home?")

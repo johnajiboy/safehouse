@@ -55,6 +55,8 @@ def submit_report(text: str, address: str, area: str, contact: str = "", reporte
     needs = [n for n in VULNERABILITY_TYPES if n in (needs or [])]
     if needs:
         extraction.vulnerability = [n for n in VULNERABILITY_TYPES if n in needs or n in extraction.vulnerability]
+        # The tenant has already told us about their household, so don't ask again.
+        extraction.questions = [q for q in extraction.questions if not intake.asks_about_household(q)]
     decision = rules.decide_level(extraction, text)
     lat, lng = locate(address, area)
     case = Case(

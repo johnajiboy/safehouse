@@ -190,6 +190,17 @@ def extract_with_keywords(text: str) -> Extraction:
     return build_extraction(text, findings, source="keywords")
 
 
+HOUSEHOLD_QUESTION = (
+    r"\b(anyone|anybody|someone|who)\b.{0,30}\b(home|live|lives|living|household|house)\b"
+    r"|\b(health|mobility|disab\w*|vulnerab\w*|pregnan\w*|child(ren)?|bab(y|ies)|older|elderly)\b"
+)
+
+
+def asks_about_household(question: str) -> bool:
+    """True for questions about who lives there or their needs, however they are worded."""
+    return re.search(HOUSEHOLD_QUESTION, question, re.IGNORECASE) is not None
+
+
 def suggest_questions(findings: dict) -> list[str]:
     questions = []
     if findings["hazard"] == "Unclear":

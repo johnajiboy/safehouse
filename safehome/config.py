@@ -13,6 +13,9 @@ DB_PATH = Path(os.environ.get("SAFEHOME_DB", ROOT / "safehome.db"))
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 MODEL = os.environ.get("SAFEHOME_MODEL", "claude-sonnet-5-5")
 
+# Demo mode adds a passwordless "Continue as demo officer" sign-in. Never turn it on for real data.
+DEMO_MODE = os.environ.get("DEMO_MODE", "false").strip().lower() in ("1", "true", "yes", "on")
+
 # Each inspector can make this many visits in a working day.
 VISITS_PER_INSPECTOR = 3
 DEFAULT_INSPECTORS = 2

@@ -5,17 +5,40 @@ Then open http://localhost:8000
 """
 from __future__ import annotations
 
+import posixpath
 from datetime import datetime
+from urllib.parse import unquote
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import config, messages, seed, service, simulation, store
+from . import auth, config, messages, seed, service, simulation, store
 from .hazards import EMERGENCY, VULNERABILITY_TYPES
 
 app = FastAPI(title="SafeHome")
+
+SESSION_COOKIE = "safehome_session"
+# Everything under /api/ needs an officer to be signed in, except these.
+PUBLIC_API = {"/api/login", "/api/login/demo", "/api/demo-mode", "/api/tenant/reports", "/api/areas"}
+OFFICER_PAGES = {"/dashboard", "/dashboard.html", "/app.js"}
+
+
+@app.middleware("http")
+async def require_officer(request: Request, call_next):
+    """Tenants can reach the intro and report form; everything officers use needs a sign-in."""
+    path = posixpath.normpath(unquote(request.url.path))
+    is_api = path == "/api" or path.startswith("/api/")
+    protected = (is_api and path not in PUBLIC_API) or path in OFFICER_PAGES
+    if protected:
+        officer = auth.officer_for(request.cookies.get(SESSION_COOKIE))
+        if officer is None:
+            if is_api:
+                return JSONResponse({"detail": "Please sign in"}, status_code=401)
+            return RedirectResponse("/login.html", status_code=303)
+        request.state.officer = officer
+    return await call_next(request)
 
 
 class ReportIn(BaseModel):
@@ -31,6 +54,11 @@ class TenantReportIn(BaseModel):
     address: str = Field(min_length=2, max_length=200)
     area: str = ""
     contact: str = Field(min_length=3, max_length=200)
+
+
+class LoginIn(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=200)
 
 
 class MoveIn(BaseModel):
@@ -64,6 +92,49 @@ def run(action, *args):
         raise HTTPException(404, str(error))
     except service.NotAllowed as error:
         raise HTTPException(400, str(error))
+
+
+@app.post("/api/login")
+def login(body: LoginIn, request: Request, response: Response):
+    try:
+        token = auth.sign_in(body.username, body.password)
+    except auth.TooManyAttempts as error:
+        raise HTTPException(429, str(error))
+    if token is None:
+        raise HTTPException(401, "Wrong username or password")
+    set_session(response, request, token)
+    return {"officer": body.username}
+
+
+@app.get("/api/demo-mode")
+def demo_mode():
+    return {"demo": config.DEMO_MODE}
+
+
+@app.post("/api/login/demo")
+def login_demo(request: Request, response: Response):
+    token = auth.sign_in_demo()
+    if token is None:
+        raise HTTPException(404, "Demo mode is off")
+    set_session(response, request, token)
+    return {"officer": auth.DEMO_OFFICER}
+
+
+def set_session(response: Response, request: Request, token: str) -> None:
+    response.set_cookie(SESSION_COOKIE, token, max_age=auth.SESSION_HOURS * 3600, httponly=True,
+                        samesite="strict", secure=request.url.scheme == "https")
+
+
+@app.post("/api/logout")
+def logout(request: Request, response: Response):
+    auth.sign_out(request.cookies.get(SESSION_COOKIE))
+    response.delete_cookie(SESSION_COOKIE)
+    return {"ok": True}
+
+
+@app.get("/api/me")
+def me(request: Request):
+    return {"officer": request.state.officer, "demo": auth.is_demo(request.state.officer)}
 
 
 @app.get("/api/plan")

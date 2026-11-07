@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SafeHome · Officer sign-in</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      /* Officer sign-in: one small card, built from the dashboard's colours and controls. */
+      .signin {
+        max-width: 420px;
+        margin: 0 auto;
+        padding: 20px 16px 48px;
+      }
+      .signin .logo {
+        margin-bottom: 18px;
+      }
+      .signin form {
+        padding: 20px;
+        display: grid;
+        gap: 16px;
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+      .field label {
+        font-weight: 600;
+      }
+      .signin input {
+        width: 100%;
+        font: inherit;
+        color: inherit;
+        background: var(--panel-2);
+        border: 1px solid transparent;
+        border-radius: 12px;
+        padding: 11px 12px;
+        transition: border-color 0.2s;
+      }
+      .signin input:focus {
+        border-color: var(--accent);
+        outline: none;
+      }
+      .signin .btn.big {
+        justify-content: center;
+        padding: 13px 18px;
+        font-size: 15px;
+      }
+      .signin .note {
+        margin-top: 16px;
+        padding: 0 4px;
+      }
+      .signin .note a {
+        color: inherit;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="signin">
+      <a class="logo" href="/">
+        <svg viewBox="0 0 28 28" aria-hidden="true">
+          <path d="M4 13 14 5l10 8v11H4z" />
+          <circle cx="14" cy="16" r="2.6" />
+        </svg>
+        SafeHome
+      </a>
+
+      <div class="pagehead">
+        <div>
+          <p class="eyebrow">Housing officers</p>
+          <h1>Sign in</h1>
+        </div>
+      </div>
+
+      <form class="panel" id="signin">
+        <div class="field">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" required autocomplete="username" autocapitalize="none" />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autocomplete="current-password" />
+        </div>
+        <p class="alertbox" id="error" role="alert" hidden></p>
+        <button class="btn primary big" type="submit" id="go">Sign in</button>
+        <button class="btn big" type="button" id="demo" hidden>Continue as demo officer</button>
+      </form>
+
+      <p class="note">Tenant? <a href="/report.html">Report a problem in your home</a> instead.</p>
+    </main>
+
+    <script>
+      (function () {
+        const $ = (id) => document.getElementById(id);
+        try {
+          const saved = localStorage.getItem("safehome-theme");
+          if (saved) document.documentElement.dataset.theme = saved;
+        } catch {
+          // Storage can be blocked; the system theme is used instead.
+        }
+
+        fetch("/api/demo-mode")
+          .then((r) => r.json())
+          .then(({ demo }) => ($("demo").hidden = !demo))
+          .catch(() => {});
+
+        $("demo").addEventListener("click", async () => {
+          $("error").hidden = true;
+          const res = await fetch("/api/login/demo", { method: "POST" }).catch(() => null);
+          if (res && res.ok) {
+            location.href = "/dashboard.html";
+            return;
+          }
+          $("error").textContent = "Demo mode is off. Please sign in with your username and password.";
+          $("error").hidden = false;
+          $("demo").hidden = true;
+        });
+
+        $("signin").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          $("error").hidden = true;
+          $("go").disabled = true;
+          try {
+            const res = await fetch("/api/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username: $("username").value.trim(), password: $("password").value }),
+            });
+            if (res.ok) {
+              location.href = "/dashboard.html";
+              return;
+            }
+            const problem = await res.json().catch(() => ({}));
+            throw new Error(typeof problem.detail === "string" ? problem.detail : "Sign-in failed. Please try again.");
+          } catch (error) {
+            $("error").textContent = error.message || "Sign-in failed. Please try again.";
+            $("error").hidden = false;
+            $("password").value = "";
+            $("password").focus();
+          } finally {
+            $("go").disabled = false;
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
